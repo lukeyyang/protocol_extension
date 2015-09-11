@@ -5,9 +5,6 @@
 *.obj
 *.elf
 
-# Executable
-bin/*
-
 # Precompiled Headers
 *.gch
 *.pch
@@ -31,10 +28,13 @@ bin/*
 *.i*86
 *.x86_64
 *.hex
+bin/*
 
 # Debug files
 *.dSYM/
 
 #misc
 .DS_Store
-.swp
+*.swp
+
+
