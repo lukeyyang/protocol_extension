@@ -182,7 +182,7 @@ main(void)
                              +  ip_flags[3]);
         ip_hdr->ip_ttl = 255;
 
-        ip_hdr->ip_p = IPPROTO_UDP;
+        ip_hdr->ip_p = IPPROTO_TCP;
 
         s = inet_pton(AF_INET, kSRC_ADDR, &(ip_hdr->ip_src));
         if (s != 1) {
