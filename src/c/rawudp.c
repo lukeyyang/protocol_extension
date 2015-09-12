@@ -22,6 +22,8 @@ const static int kSRC_PORT = 64000;
 const static int kDST_PORT = 64001;
 const static char* kSRC_ADDR = "192.168.2.1";
 const static char* kDST_ADDR = "192.168.2.2";
+const static size_t kTOTAL_PKT_LEN = kIP_HDR_LEN + kUDP_HDR_LEN
+                                   + kTRAILER_OFFSET + kOPTIONS_LENGTH;
 
 uint16_t 
 checksum(uint16_t* buffer, int nwords)
@@ -50,7 +52,7 @@ main(void)
 
         struct sockaddr_in sin, din;
         int one = 1;
-        
+
         /* SET UP SOCKET */
         int sd = socket(PF_INET, SOCK_RAW, IPPROTO_UDP);
         if (sd < 0) {
@@ -88,8 +90,7 @@ main(void)
         ip_hdr->ip_hl = 5;  /* Internet Header Length */
         ip_hdr->ip_v  = 4;  /* Version */
         ip_hdr->ip_tos = 0; /* Type of service */
-        ip_hdr->ip_len = (kIP_HDR_LEN + kUDP_HDR_LEN 
-                        + kTRAILER_OFFSET + kOPTIONS_LENGTH); /* Total Length */
+        ip_hdr->ip_len = kTOTAL_PKT_LEN; /* Length */
         ip_hdr->ip_id = htons(0);  /* identification: unused */
 
         char ip_flags[4];
@@ -114,7 +115,7 @@ main(void)
                 return FAILURE;
         }
 
-        ip_hdr->ip_sum = checksum((uint16_t*) pkt, kIP_HDR_LEN + kUDP_HDR_LEN);
+        ip_hdr->ip_sum = 0;//checksum((uint16_t*) pkt, kIP_HDR_LEN + kUDP_HDR_LEN);
 
         
         /* FILL OUT UDP HEADER */
@@ -122,7 +123,7 @@ main(void)
         udp_hdr->uh_sport = htons(kSRC_PORT); /* UDP source port */
         udp_hdr->uh_dport = htons(kDST_PORT); /* UDP dest port */
         udp_hdr->uh_ulen = htons(kUDP_HDR_LEN + kTRAILER_OFFSET);
-        //udp_hdr->uh_sum = udp_cheksum(/* TODO */);
+        udp_hdr->uh_sum = 2;
 
         /* MOVE PAYLOAD IN PLACE */
 
@@ -132,12 +133,9 @@ main(void)
 
         
         printf("About to send\n");
-
-
-
         int i;
         for (i = 0; i < 10; i++) {
-                if (sendto(sd, pkt, ip_hdr->ip_len, 0, 
+                if (sendto(sd, pkt, kTOTAL_PKT_LEN, 0, 
                     (struct sockaddr *)&sin, sizeof(sin)) < 0) {
                         fprintf(stderr, "sendto() error: %s\n", strerror(errno));
                         return FAILURE;

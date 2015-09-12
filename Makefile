@@ -2,7 +2,7 @@ CC = gcc
 CFLAGS = -g -Wall
 SRC_DIR = ./src/c
 DST_DIR = ./bin/x86_64/Darwin
-TARGET = $(DST)/rawtcp $(DST)/rawudp
+TARGET = $(DST_DIR)/rawtcp $(DST_DIR)/rawudp
 MKDIR_P = mkdir -p
 DIRECTORIES = $(SRC_DIR) $(DST_DIR)
 

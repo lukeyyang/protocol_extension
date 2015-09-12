@@ -16,6 +16,7 @@
 const static size_t kPKT_MAX_LEN = 1024;
 const static size_t kIP_HDR_LEN = 20;
 const static size_t kTCP_HDR_LEN = 20;
+const static size_t kTOTAL_LEN = kIP_HDR_LEN + kTCP_HDR_LEN;
 const static int kSRC_PORT = 64000;
 const static int kDST_PORT = 64001;
 const static char* kSRC_ADDR = "192.168.2.1";
@@ -139,7 +140,8 @@ main(void)
 
         struct sockaddr_in sin, din;
         int one = 1;
-        
+
+       
         /* SET UP SOCKET */
         int sd = socket(PF_INET, SOCK_RAW, IPPROTO_TCP);
         if (sd < 0) {
@@ -170,8 +172,8 @@ main(void)
         ip_hdr->ip_hl = 5;  /* Internet Header Length */
         ip_hdr->ip_v  = 4;  /* Version */
         ip_hdr->ip_tos = 0; /* Type of service */
-        ip_hdr->ip_len = kIP_HDR_LEN + kTCP_HDR_LEN; /* Total Length */
         ip_hdr->ip_id = htons(0);  /* identification: unused */
+        ip_hdr->ip_len = kTOTAL_LEN; /* Length */
 
         char ip_flags[4];
         memset(ip_flags, 4, 0);
@@ -195,7 +197,7 @@ main(void)
                 return FAILURE;
         }
 
-        ip_hdr->ip_sum = checksum((uint16_t*) pkt, kIP_HDR_LEN + kTCP_HDR_LEN);
+        ip_hdr->ip_sum = 0;//checksum((uint16_t*) pkt, kIP_HDR_LEN + kTCP_HDR_LEN);
 
         
         /* FILL OUT TCP HEADER */
@@ -206,14 +208,14 @@ main(void)
         tcp_hdr->th_ack = htonl(0);           /* Acknowledgement number */
         tcp_hdr->th_x2 = 0;                   /* unused */
         tcp_hdr->th_off = kTCP_HDR_LEN / 4;   /* Data offset */
-        tcp_hdr->th_flags = 0;                /* Flags */
+        tcp_hdr->th_flags = TH_SYN;                /* Flags */
         /**
          * TH_CWR|TH_ECE|TH_URG|TH_ACK|TH_PSH|TH_RST|TH_SYN|TH_FIN
          *   0      0      0      0      0      0      0      0
          */
         tcp_hdr->th_win = htons(65535);       /* Window */
         tcp_hdr->th_urp = htons(0);           /* Urgent pointer */
-        tcp_hdr->th_sum = tcp4_checksum(ip_hdr, tcp_hdr);
+        tcp_hdr->th_sum = htons(tcp4_checksum(ip_hdr, tcp_hdr));
 
 
 
@@ -224,7 +226,7 @@ main(void)
 
         int i;
         for (i = 0; i < 10; i++) {
-                if (sendto(sd, pkt, ip_hdr->ip_len, 0, 
+                if (sendto(sd, pkt, kTOTAL_LEN, 0, 
                     (struct sockaddr *)&sin, sizeof(sin)) < 0) {
                         fprintf(stderr, "sendto() error: %s\n", strerror(errno));
                         return FAILURE;
