@@ -2,7 +2,7 @@ CC = gcc
 CFLAGS = -g -Wall
 SRC_DIR = ./src/c
 DST_DIR = ./bin/x86_64/Darwin
-TARGET = $(DST_DIR)/rawtcp $(DST_DIR)/rawudp
+TARGET = $(DST_DIR)/rawtcp $(DST_DIR)/rawudp $(DST_DIR)/udprecv
 MKDIR_P = mkdir -p
 DIRECTORIES = $(SRC_DIR) $(DST_DIR)
 
@@ -11,6 +11,7 @@ DIRECTORIES = $(SRC_DIR) $(DST_DIR)
 all: $(DIRECTORIES) $(TARGET)
 tcp: $(DIRECTORIES) $(DST_DIR)/rawtcp
 udp: $(DIRECTORIES) $(DST_DIR)/rawudp
+udprecv: $(DIRECTORIES) $(DST_DIR)/udprecv
 
 
 $(DST_DIR)/rawtcp: $(SRC_DIR)/rawtcp.c
@@ -18,6 +19,9 @@ $(DST_DIR)/rawtcp: $(SRC_DIR)/rawtcp.c
 
 $(DST_DIR)/rawudp: $(SRC_DIR)/rawudp.c
 	$(CC) $(SRC_DIR)/rawudp.c -o $(DST_DIR)/rawudp $(CFLAGS)
+
+$(DST_DIR)/udprecv: $(SRC_DIR)/udprecv.c
+	$(CC) $(SRC_DIR)/udprecv.c -o $(DST_DIR)/udprecv $(CFLAGS)
 
 runtcp: $(DST_DIR)/rawtcp
 	sudo $(DST_DIR)/rawtcp

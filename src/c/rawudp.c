@@ -21,7 +21,7 @@ const static size_t kUDP_HDR_LEN = 8;
 const static int kSRC_PORT = 64000;
 const static int kDST_PORT = 64001;
 const static char* kSRC_ADDR = "192.168.2.1";
-const static char* kDST_ADDR = "192.168.2.2";
+const static char* kDST_ADDR = "192.168.1.7";
 const static size_t kTOTAL_PKT_LEN = kIP_HDR_LEN + kUDP_HDR_LEN
                                    + kTRAILER_OFFSET + kOPTIONS_LENGTH;
 
