@@ -6,7 +6,7 @@ MACHINE = $(shell uname -m)
 DST_DIR = ./bin/$(MACHINE)/$(KERNEL)
 TARGET = $(DST_DIR)/rawtcp $(DST_DIR)/rawudp $(DST_DIR)/udprecv
 MKDIR_P = mkdir -p
-DIRECTORIES = $(SRC_DIR) $(DST_DIR)
+DIRECTORIES = $(DST_DIR)
 
 
 
