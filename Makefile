@@ -1,5 +1,6 @@
 CC = gcc
 CFLAGS = -g -Wall
+INC = -I./include
 SRC_DIR = ./src/c
 KERNEL = $(shell uname -s)
 MACHINE = $(shell uname -m)
@@ -17,13 +18,13 @@ udprecv: $(DIRECTORIES) $(DST_DIR)/udprecv
 
 
 $(DST_DIR)/rawtcp: $(SRC_DIR)/rawtcp.c
-	$(CC) $(SRC_DIR)/rawtcp.c -o $(DST_DIR)/rawtcp $(CFLAGS)
+	$(CC) $(SRC_DIR)/rawtcp.c -o $(DST_DIR)/rawtcp $(CFLAGS) $(INC)
 
 $(DST_DIR)/rawudp: $(SRC_DIR)/rawudp.c
-	$(CC) $(SRC_DIR)/rawudp.c -o $(DST_DIR)/rawudp $(CFLAGS)
+	$(CC) $(SRC_DIR)/rawudp.c -o $(DST_DIR)/rawudp $(CFLAGS) $(INC)
 
 $(DST_DIR)/udprecv: $(SRC_DIR)/udprecv.c
-	$(CC) $(SRC_DIR)/udprecv.c -o $(DST_DIR)/udprecv $(CFLAGS)
+	$(CC) $(SRC_DIR)/udprecv.c -o $(DST_DIR)/udprecv $(CFLAGS) $(INC)
 
 runtcp: $(DST_DIR)/rawtcp
 	sudo $(DST_DIR)/rawtcp

@@ -12,6 +12,8 @@
 #include <arpa/inet.h>
 #include <errno.h>
 
+#include "os_detect.h"
+
 #define FAILURE -1
 const static size_t kPKT_MAX_LEN = 1024;
 const static size_t kTRAILER_OFFSET = 4;

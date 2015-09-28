@@ -3,6 +3,9 @@
 #include <stdio.h>
 #include <strings.h>
 
+
+#include "os_detect.h"
+
 const static size_t kBUFFER_MAX_LEN = 1024;
 const static int kDST_PORT = 64001;
 
