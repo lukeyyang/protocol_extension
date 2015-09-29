@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -g -Wall
+CFLAGS = -g -Wall -O
 INC = -I./include
 SRC_DIR = ./src/c
 KERNEL = $(shell uname -s)

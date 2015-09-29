@@ -18,7 +18,6 @@
 const static size_t kPKT_MAX_LEN = 1024;
 const static size_t kIP_HDR_LEN = 20;
 const static size_t kTCP_HDR_LEN = 20;
-const static size_t kTOTAL_LEN = kIP_HDR_LEN + kTCP_HDR_LEN;
 const static int kSRC_PORT = 64000;
 const static int kDST_PORT = 64001;
 const static char* kSRC_ADDR = "192.168.2.1";
@@ -131,6 +130,8 @@ tcp4_checksum (struct ip* ip_hdr, struct tcphdr* tcp_hdr)
 int
 main(void)
 {
+        const size_t kTOTAL_LEN = kIP_HDR_LEN + kTCP_HDR_LEN;
+
         char pkt[kPKT_MAX_LEN];
         memset(pkt, 0, kPKT_MAX_LEN);
 
@@ -140,7 +141,7 @@ main(void)
         assert(sizeof(struct ip) == kIP_HDR_LEN);
         assert(sizeof(struct tcphdr) == kTCP_HDR_LEN);
 
-        struct sockaddr_in sin, din;
+        struct sockaddr_in sin; /*, din; */
         int one = 1;
 
        
@@ -159,13 +160,13 @@ main(void)
         }
 
         sin.sin_family = AF_INET;
-        din.sin_family = AF_INET;
+        /* din.sin_family = AF_INET; */
 
         sin.sin_port = htons(kSRC_PORT);
-        din.sin_port = htons(kDST_PORT);
+        /* din.sin_port = htons(kDST_PORT); */
 
         sin.sin_addr.s_addr = inet_addr(kSRC_ADDR);
-        din.sin_addr.s_addr = inet_addr(kDST_ADDR);
+        /* din.sin_addr.s_addr = inet_addr(kDST_ADDR); */
 
 
 
@@ -178,7 +179,7 @@ main(void)
         ip_hdr->ip_len = kTOTAL_LEN; /* Length */
 
         char ip_flags[4];
-        memset(ip_flags, 4, 0);
+        memset(ip_flags, 0, 4);
 
         ip_hdr->ip_off = htons((ip_flags[0] << 15)
                              + (ip_flags[1] << 14)
@@ -199,18 +200,19 @@ main(void)
                 return FAILURE;
         }
 
-        ip_hdr->ip_sum = 0;//checksum((uint16_t*) pkt, kIP_HDR_LEN + kTCP_HDR_LEN);
+        ip_hdr->ip_sum = 0;
+        /* checksum((uint16_t*) pkt, kIP_HDR_LEN + kTCP_HDR_LEN); */
 
         
         /* FILL OUT TCP HEADER */
-
+#ifdef THIS_IS_OS_X
         tcp_hdr->th_sport = htons(kSRC_PORT); /* TCP source port */
         tcp_hdr->th_dport = htons(kDST_PORT); /* TCP dest port */
         tcp_hdr->th_seq = htonl(0);           /* Sequence number */
         tcp_hdr->th_ack = htonl(0);           /* Acknowledgement number */
         tcp_hdr->th_x2 = 0;                   /* unused */
         tcp_hdr->th_off = kTCP_HDR_LEN / 4;   /* Data offset */
-        tcp_hdr->th_flags = TH_SYN;                /* Flags */
+        tcp_hdr->th_flags = TH_SYN;           /* Flags */
         /**
          * TH_CWR|TH_ECE|TH_URG|TH_ACK|TH_PSH|TH_RST|TH_SYN|TH_FIN
          *   0      0      0      0      0      0      0      0
@@ -218,9 +220,30 @@ main(void)
         tcp_hdr->th_win = htons(65535);       /* Window */
         tcp_hdr->th_urp = htons(0);           /* Urgent pointer */
         tcp_hdr->th_sum = htons(tcp4_checksum(ip_hdr, tcp_hdr));
-
-
-
+#elif defined(THIS_IS_LINUX)
+        tcp_hdr->source  = htons(kSRC_PORT);   /* TCP source port */
+        tcp_hdr->dest    = htons(kDST_PORT);   /* TCP dest port */
+        tcp_hdr->seq     = htonl(0);           /* Sequence number */
+        tcp_hdr->ack_seq = htonl(0);           /* Acknowledgement number */
+        tcp_hdr->res1    = 0;                  /* unused */
+        tcp_hdr->doff    = kTCP_HDR_LEN / 4;   /* Data offset */
+        tcp_hdr->fin     = 0;
+        tcp_hdr->syn     = 1;                  /* SYN */
+        tcp_hdr->rst     = 0;
+        tcp_hdr->psh     = 0;
+        tcp_hdr->ack     = 0;
+        tcp_hdr->urg     = 0;
+        tcp_hdr->res2    = 0;
+        /**
+         * TH_CWR|TH_ECE|TH_URG|TH_ACK|TH_PSH|TH_RST|TH_SYN|TH_FIN
+         *   0      0      0      0      0      0      0      0
+         */
+        tcp_hdr->window  = htons(65535);       /* Window */
+        tcp_hdr->urg_ptr = htons(0);           /* Urgent pointer */
+        tcp_hdr->check   = htons(tcp4_checksum(ip_hdr, tcp_hdr));
+#else
+  #error "Undetected OS. See include/os_detect.h"
+#endif
 
         
         printf("About to send\n");

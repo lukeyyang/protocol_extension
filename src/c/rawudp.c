@@ -24,8 +24,6 @@ const static int kSRC_PORT = 64000;
 const static int kDST_PORT = 64001;
 const static char* kSRC_ADDR = "192.168.2.1";
 const static char* kDST_ADDR = "192.168.1.7";
-const static size_t kTOTAL_PKT_LEN = kIP_HDR_LEN + kUDP_HDR_LEN
-                                   + kTRAILER_OFFSET + kOPTIONS_LENGTH;
 
 uint16_t 
 checksum(uint16_t* buffer, int nwords)
@@ -43,6 +41,9 @@ checksum(uint16_t* buffer, int nwords)
 int
 main(void)
 {
+        const size_t kTOTAL_PKT_LEN = kIP_HDR_LEN + kUDP_HDR_LEN
+                                    + kTRAILER_OFFSET + kOPTIONS_LENGTH;
+
         char pkt[kPKT_MAX_LEN];
         memset(pkt, 0, kPKT_MAX_LEN);
 
@@ -52,7 +53,7 @@ main(void)
         assert(sizeof(struct ip) == kIP_HDR_LEN);
         assert(sizeof(struct udphdr) == kUDP_HDR_LEN);
 
-        struct sockaddr_in sin, din;
+        struct sockaddr_in sin; /*, din; */
         int one = 1;
 
         /* SET UP SOCKET */
@@ -70,19 +71,20 @@ main(void)
         }
 
         sin.sin_family = AF_INET;
-        din.sin_family = AF_INET;
+        /* din.sin_family = AF_INET; */
 
         sin.sin_port = htons(kSRC_PORT);
-        din.sin_port = htons(kDST_PORT);
+        /* din.sin_port = htons(kDST_PORT); */
 
         sin.sin_addr.s_addr = inet_addr(kSRC_ADDR);
-        din.sin_addr.s_addr = inet_addr(kDST_ADDR);
+        /* din.sin_addr.s_addr = inet_addr(kDST_ADDR); */
 
         /* UDP PAYLOAD AND OPTION AREA */
 
-        unsigned char udp_payload[kTRAILER_OFFSET] = "test";
+        unsigned char udp_payload[kTRAILER_OFFSET];
+        strncpy((char*) udp_payload, "test", kTRAILER_OFFSET);
         unsigned char udp_options[kOPTIONS_LENGTH];
-        memset(udp_options, kOPTIONS_LENGTH, 0);
+        memset(udp_options, 0, kOPTIONS_LENGTH);
         udp_options[0] = (unsigned char) 254; /* Experimental kind */
         udp_options[1] = (unsigned char) 16; /* length, required >= 4 */
 
@@ -96,7 +98,7 @@ main(void)
         ip_hdr->ip_id = htons(0);  /* identification: unused */
 
         char ip_flags[4];
-        memset(ip_flags, 4, 0);
+        memset(ip_flags, 0, 4);
 
         ip_hdr->ip_off = htons((ip_flags[0] << 15)
                              + (ip_flags[1] << 14)
@@ -117,15 +119,25 @@ main(void)
                 return FAILURE;
         }
 
-        ip_hdr->ip_sum = 0;//checksum((uint16_t*) pkt, kIP_HDR_LEN + kUDP_HDR_LEN);
+        ip_hdr->ip_sum = 0;
+        /* checksum((uint16_t*) pkt, kIP_HDR_LEN + kUDP_HDR_LEN); */
 
         
         /* FILL OUT UDP HEADER */
 
+#ifdef THIS_IS_OS_X
         udp_hdr->uh_sport = htons(kSRC_PORT); /* UDP source port */
         udp_hdr->uh_dport = htons(kDST_PORT); /* UDP dest port */
-        udp_hdr->uh_ulen = htons(kUDP_HDR_LEN + kTRAILER_OFFSET);
-        udp_hdr->uh_sum = 2;
+        udp_hdr->uh_ulen  = htons(kUDP_HDR_LEN + kTRAILER_OFFSET);
+        udp_hdr->uh_sum   = 0;
+#elif defined(THIS_IS_LINUX)
+        udp_hdr->source = htons(kSRC_PORT); /* UDP source port */
+        udp_hdr->dest   = htons(kDST_PORT); /* UDP dest port */
+        udp_hdr->len    = htons(kUDP_HDR_LEN + kTRAILER_OFFSET);
+        udp_hdr->check  = 0;
+#else
+  #error "Undetected OS. See os_detect.h"
+#endif
 
         /* MOVE PAYLOAD IN PLACE */
 
