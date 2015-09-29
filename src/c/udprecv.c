@@ -24,11 +24,14 @@ int main()
         servaddr.sin_port = htons(kDST_PORT);
         bind(sockfd, (struct sockaddr*) &servaddr, sizeof(servaddr));
 
+        int i = 0;
+
         while (1) {
                 len = sizeof(cliaddr);
                 n = recvfrom(sockfd, msg, kBUFFER_MAX_LEN, 0, 
                     (struct sockaddr *) &cliaddr, &len);
-                printf("-------------------------------------------------------\n");
+                printf("\t%d\n", i++);
+                printf("--------------------------------------------------\n");
                 printf("Received %d bytes\n", n);
                 printf("Dump of the first %d bytes: \n", n);
                 int i;
@@ -37,8 +40,7 @@ int main()
                 printf("\n");
                 printf("Hexdump of the next two bytes: 0x%X 0x%X\n", 
                     *(msg + n), *(msg + n + 1));
-                printf("-------------------------------------------------------\n");
+                printf("--------------------------------------------------\n");
         }
         return 0;
 }
-
