@@ -32,6 +32,9 @@ runtcp: $(DST_DIR)/rawtcp
 runudp: $(DST_DIR)/rawudp
 	sudo $(DST_DIR)/rawudp
 
+runudprecv: $(DST_DIR)/udprecv
+	$(DST_DIR)/udprecv
+
 clean:
 	rm -rf $(DST_DIR)/*
 
@@ -40,6 +43,4 @@ clean:
 directories: $(DIRECTORIES)
 
 $(DIRECTORIES):
-	$(MKDIR_P) $(SRC_DIR)
 	$(MKDIR_P) $(DST_DIR)
-
