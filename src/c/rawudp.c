@@ -13,6 +13,7 @@
 #include <errno.h>
 
 #include "os_detect.h"
+#include "utility.h"
 
 #define FAILURE -1
 const static size_t kPKT_MAX_LEN = 1024;
@@ -20,27 +21,22 @@ const static size_t kTRAILER_OFFSET = 4;
 const static size_t kOPTIONS_LENGTH = 12;
 const static size_t kIP_HDR_LEN = 20;
 const static size_t kUDP_HDR_LEN = 8;
-const static int kSRC_PORT = 64000;
-const static int kDST_PORT = 64001;
-const static char* kSRC_ADDR = "192.168.2.1";
-const static char* kDST_ADDR = "192.168.1.7";
+const static int kSRC_PORT_DEFAULT = 64000;
+const static int kDST_PORT_DEFAULT = 64001;
 
-uint16_t 
-checksum(uint16_t* buffer, int nwords)
-{
-        uint64_t sum;
-        for (sum = 0; nwords > 0; nwords--) {
-                sum += *buffer;
-                buffer++;
-        }
-        sum = (sum >> 16) + (sum & 0xffff);
-        sum += sum >> 16;
-        return (uint16_t)(~sum);
-}
 
 int
-main(void)
+main(int argc, char** argv)
 {
+        /* COMMAND LINE PARSING */
+
+        int src_port = kSRC_PORT_DEFAULT;
+        int dst_port = kDST_PORT_DEFAULT;
+        char* src_addr = "127.0.0.1";
+        char* dst_addr = "127.0.0.1";
+        parse_args(argc, argv, src_addr, &src_port, dst_addr, &dst_port);
+
+
         const size_t kTOTAL_PKT_LEN = kIP_HDR_LEN + kUDP_HDR_LEN
                                     + kTRAILER_OFFSET + kOPTIONS_LENGTH;
 
@@ -53,7 +49,7 @@ main(void)
         assert(sizeof(struct ip) == kIP_HDR_LEN);
         assert(sizeof(struct udphdr) == kUDP_HDR_LEN);
 
-        struct sockaddr_in sin; /*, din; */
+        struct sockaddr_in sin;
         int one = 1;
 
         /* SET UP SOCKET */
@@ -71,13 +67,14 @@ main(void)
         }
 
         sin.sin_family = AF_INET;
-        /* din.sin_family = AF_INET; */
 
-        sin.sin_port = htons(kSRC_PORT);
-        /* din.sin_port = htons(kDST_PORT); */
+        sin.sin_port = htons(src_port);
 
-        sin.sin_addr.s_addr = inet_addr(kSRC_ADDR);
-        /* din.sin_addr.s_addr = inet_addr(kDST_ADDR); */
+        sin.sin_addr.s_addr = inet_addr(src_addr);
+        if (sin.sin_addr.s_addr == INADDR_NONE) {
+                fprintf(stderr, "malformed inet_addr() request\n");
+                return FAILURE;
+        }
 
         /* UDP PAYLOAD AND OPTION AREA */
 
@@ -108,31 +105,31 @@ main(void)
 
         ip_hdr->ip_p = IPPROTO_UDP;
 
-        s = inet_pton(AF_INET, kSRC_ADDR, &(ip_hdr->ip_src));
+        s = inet_pton(AF_INET, src_addr, &(ip_hdr->ip_src));
         if (s != 1) {
                 fprintf(stderr, "inet_pton() error: %s\n", strerror(errno));
                 return FAILURE;
         }
-        s = inet_pton(AF_INET, kDST_ADDR, &(ip_hdr->ip_dst));
+        s = inet_pton(AF_INET, dst_addr, &(ip_hdr->ip_dst));
         if (s != 1) {
                 fprintf(stderr, "inet_pton() error: %s\n", strerror(errno));
                 return FAILURE;
         }
 
         ip_hdr->ip_sum = 0;
-        /* checksum((uint16_t*) pkt, kIP_HDR_LEN + kUDP_HDR_LEN); */
+        /* udp_checksum((uint16_t*) pkt, kIP_HDR_LEN + kUDP_HDR_LEN); */
 
         
         /* FILL OUT UDP HEADER */
 
 #ifdef THIS_IS_OS_X
-        udp_hdr->uh_sport = htons(kSRC_PORT); /* UDP source port */
-        udp_hdr->uh_dport = htons(kDST_PORT); /* UDP dest port */
+        udp_hdr->uh_sport = htons(src_port); /* UDP source port */
+        udp_hdr->uh_dport = htons(dst_port); /* UDP dest port */
         udp_hdr->uh_ulen  = htons(kUDP_HDR_LEN + kTRAILER_OFFSET);
         udp_hdr->uh_sum   = 0;
 #elif defined(THIS_IS_LINUX)
-        udp_hdr->source = htons(kSRC_PORT); /* UDP source port */
-        udp_hdr->dest   = htons(kDST_PORT); /* UDP dest port */
+        udp_hdr->source = htons(src_port); /* UDP source port */
+        udp_hdr->dest   = htons(dst_port); /* UDP dest port */
         udp_hdr->len    = htons(kUDP_HDR_LEN + kTRAILER_OFFSET);
         udp_hdr->check  = 0;
 #else

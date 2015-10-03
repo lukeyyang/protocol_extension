@@ -2,15 +2,55 @@
 #include <netinet/in.h>
 #include <stdio.h>
 #include <strings.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <inttypes.h>
+#include <errno.h>
+
+
+extern char* optarg;
+extern int optind;
+extern int optopt;
+extern int opterr;
+extern int optreset;
 
 
 #include "os_detect.h"
 
 const static size_t kBUFFER_MAX_LEN = 1024;
-const static int kDST_PORT = 64001;
+const static int kLISTEN_PORT_DEFAULT = 64001;
 
-int main()
+int 
+main(int argc, char** argv)
 {
+        /* command line argument: port number to listen to */
+        int dst_port = kLISTEN_PORT_DEFAULT;
+        int ch = -1;
+        int num = 0;
+        while ((ch = getopt(argc, argv, "p:")) != -1) {
+                switch (ch) {
+                case 'p':
+                        num = (int) strtol(optarg, NULL, 10);
+                        if ((!num) && (errno == EINVAL || errno == ERANGE)) {
+                                fprintf(stderr,
+                                        "Invalid port number to listen to, "
+                                        "reset to default 64001\n");
+                        } else {
+                                dst_port = num;
+                        }
+                        break;
+                case '?':
+                default:
+                        fprintf(stderr, 
+                                "usage: %s [-p port_number_to_listen_to]\n",
+                                argv[0]);
+                        exit(-1);
+                        break;
+                }
+        }
+        printf("Listening to localhost port: %d\n", dst_port);
+
+
         int sockfd, n;
         struct sockaddr_in servaddr, cliaddr;
         socklen_t len;
@@ -21,7 +61,7 @@ int main()
         bzero(&servaddr, sizeof(servaddr));
         servaddr.sin_family = AF_INET;
         servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-        servaddr.sin_port = htons(kDST_PORT);
+        servaddr.sin_port = htons(dst_port);
         bind(sockfd, (struct sockaddr*) &servaddr, sizeof(servaddr));
 
         int i = 0;
