@@ -72,14 +72,17 @@ main(int argc, char** argv)
                     (struct sockaddr *) &cliaddr, &len);
                 printf("\t%d\n", i++);
                 printf("--------------------------------------------------\n");
-                printf("Received %d bytes\n", n);
-                printf("Dump of the first %d bytes: \n", n);
+                printf("Received %d UDP paylod bytes:\n", n);
                 int i;
                 for (i = 0; i < n; i++)
                         printf("%c", *(msg + i));
                 printf("\n");
-                printf("Hexdump of the next two bytes: 0x%X 0x%X\n", 
-                    *(msg + n), *(msg + n + 1));
+                printf("Continue printing the receive buffer, "
+                       "until a NULL byte is seen:\n");
+                for (i = 0; 
+                    (*(msg + n + i) != '\0' && n + i < kBUFFER_MAX_LEN); i++)
+                        printf("0x%X, ", *(msg + n + i));
+                printf("\n");
                 printf("--------------------------------------------------\n");
         }
         return 0;
