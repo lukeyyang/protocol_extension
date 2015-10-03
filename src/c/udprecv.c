@@ -72,7 +72,7 @@ main(int argc, char** argv)
                     (struct sockaddr *) &cliaddr, &len);
                 printf("\t%d\n", i++);
                 printf("--------------------------------------------------\n");
-                printf("Received %d UDP paylod bytes:\n", n);
+                printf("Received %d UDP payload bytes:\n", n);
                 int i;
                 for (i = 0; i < n; i++)
                         printf("%c", *(msg + i));
