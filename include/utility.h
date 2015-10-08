@@ -11,9 +11,9 @@ extern int optreset;
 void 
 parse_args(int argc, 
            char* const argv[],
-           const char* source_addr,
+           char* const source_addr,
            int* const source_port,
-           const char* dest_addr,
+           char* const dest_addr,
            int* const dest_port);
 
 uint16_t 

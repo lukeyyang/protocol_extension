@@ -3,6 +3,7 @@
 #include <inttypes.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <string.h>
 #include "utility.h"
 
 #define kUSAGE "usage: %s [-h source_addr]"\
@@ -13,18 +14,19 @@
 void 
 parse_args(int argc,
            char* const argv[],
-           const char* source_addr,
+           char* const source_addr,
            int* const source_port,
-           const char* dest_addr,
+           char* const dest_addr,
            int* const dest_port)
 {
         const static char* usage = kUSAGE;
+        const static size_t kIPADDR_MAXLEN = 16;
         int ch = -1;
         int num = 0;
         while ((ch = getopt(argc, argv, "h:f:d:p:")) != -1) {
                 switch (ch) {
                 case 'h':
-                        source_addr = optarg;
+                        strncpy(source_addr, optarg, kIPADDR_MAXLEN);
                         break;
                 case 'f':
                         num = (int) strtol(optarg, NULL, 10);
@@ -37,7 +39,7 @@ parse_args(int argc,
                         }
                         break;
                 case 'd':
-                        dest_addr = optarg;
+                        strncpy(dest_addr, optarg, kIPADDR_MAXLEN);
                         break;
                 case 'p':
                         num = (int) strtol(optarg, NULL, 10);
@@ -56,10 +58,6 @@ parse_args(int argc,
                         break;
                 }
         }
-        printf("Source address: %s\n", source_addr);
-        printf("Source port: %d\n", *source_port);
-        printf("Destination address: %s\n", dest_addr);
-        printf("Destination port: %d\n", *dest_port);
 }
 
 
@@ -75,5 +73,3 @@ udp_checksum(uint16_t* buffer, int nwords)
         sum += sum >> 16;
         return (uint16_t)(~sum);
 }
-
-

@@ -23,6 +23,7 @@ const static size_t kIP_HDR_LEN = 20;
 const static size_t kUDP_HDR_LEN = 8;
 const static int kSRC_PORT_DEFAULT = 64000;
 const static int kDST_PORT_DEFAULT = 64001;
+const static char* kIP_LOCALHOST = "127.0.0.1";
 
 
 int
@@ -32,10 +33,18 @@ main(int argc, char** argv)
 
         int src_port = kSRC_PORT_DEFAULT;
         int dst_port = kDST_PORT_DEFAULT;
-        char* src_addr = "127.0.0.1";
-        char* dst_addr = "127.0.0.1";
+
+        char src_addr[16];
+        char dst_addr[16];
+        memset(src_addr, 0, 16);
+        memset(dst_addr, 0, 16);
+        strncpy(src_addr, kIP_LOCALHOST, 16);
+        strncpy(dst_addr, kIP_LOCALHOST, 16);
+
         parse_args(argc, argv, src_addr, &src_port, dst_addr, &dst_port);
 
+        printf("src: %s: %d\n", src_addr, src_port);
+        printf("dst: %s: %d\n", dst_addr, dst_port);
 
         const size_t kTOTAL_PKT_LEN = kIP_HDR_LEN + kUDP_HDR_LEN
                                     + kTRAILER_OFFSET + kOPTIONS_LENGTH;
