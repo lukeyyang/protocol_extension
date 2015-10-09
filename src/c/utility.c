@@ -205,15 +205,9 @@ tcp_checksum(struct ip* ip_hdr, struct tcphdr* tcp_hdr)
 
         /* Copy TCP flags to buf (8 bits) */
 
-  #if __BYTE_ORDER == __LITTLE_ENDIAN
-        memcpy(ptr, &(tcp_hdr->fin), 8);
-  #elif __BYTE_ORDER == _BIG_ENDIAN
-        memcpy(ptr, &(tcp_hdr->res2), 8);
-  #else
-    #error "Adjust your <bits/endian.h> defines"
-  #endif
-        ptr += 8;
-        chksumlen += 8;
+        memcpy(ptr, (void*) tcp_hdr + 16, 1);
+        ptr += 1;
+        chksumlen += 1;
 
         /* Copy TCP window size to buf (16 bits) */
         memcpy(ptr, &(tcp_hdr->window), sizeof(tcp_hdr->window));
