@@ -13,123 +13,38 @@
 #include <errno.h>
 
 #include "os_detect.h"
+#include "utility.h"
 
 #define FAILURE -1
 const static size_t kPKT_MAX_LEN = 1024;
 const static size_t kIP_HDR_LEN = 20;
 const static size_t kTCP_HDR_LEN = 20;
-const static int kSRC_PORT = 64000;
-const static int kDST_PORT = 64001;
-const static char* kSRC_ADDR = "192.168.2.1";
-const static char* kDST_ADDR = "192.168.2.2";
+const static int kSRC_PORT_DEFAULT = 64000;
+const static int kDST_PORT_DEFAULT = 64001;
+const static char* kIP_LOCALHOST = "127.0.0.1";
 
-uint16_t 
-checksum(uint16_t* buffer, int nwords)
-{
-        uint64_t sum;
-        for (sum = 0; nwords > 0; nwords--) {
-                sum += *buffer;
-                buffer++;
-        }
-        sum = (sum >> 16) + (sum & 0xffff);
-        sum += sum >> 16;
-        return (uint16_t)(~sum);
-}
-
-// Build IPv4 TCP pseudo-header and call checksum function.
-uint16_t
-tcp4_checksum (struct ip* ip_hdr, struct tcphdr* tcp_hdr)
-{
-        uint16_t svalue;
-        char buf[kPKT_MAX_LEN], cvalue;
-        char *ptr;
-        int chksumlen = 0;
-
-        // ptr points to beginning of buffer buf
-        ptr = &buf[0];
-
-        // Copy source IP address into buf (32 bits)
-        memcpy (ptr, &(ip_hdr->ip_src.s_addr), sizeof(ip_hdr->ip_src.s_addr));
-        ptr += sizeof (ip_hdr->ip_src.s_addr);
-        chksumlen += sizeof (ip_hdr->ip_src.s_addr);
-
-        // Copy destination IP address into buf (32 bits)
-        memcpy (ptr, &(ip_hdr->ip_dst.s_addr), sizeof (ip_hdr->ip_dst.s_addr));
-        ptr += sizeof (ip_hdr->ip_dst.s_addr);
-        chksumlen += sizeof (ip_hdr->ip_dst.s_addr);
-
-        // Copy zero field to buf (8 bits)
-        *ptr = 0; 
-        ptr++;
-        chksumlen += 1;
-
-        // Copy transport layer protocol to buf (8 bits)
-        memcpy (ptr, &(ip_hdr->ip_p), sizeof (ip_hdr->ip_p));
-        ptr += sizeof (ip_hdr->ip_p);
-        chksumlen += sizeof (ip_hdr->ip_p);
-
-        // Copy TCP length to buf (16 bits)
-        svalue = htons (sizeof (tcp_hdr));
-        memcpy (ptr, &svalue, sizeof (svalue));
-        ptr += sizeof (svalue);
-        chksumlen += sizeof (svalue);
-
-        // Copy TCP source port to buf (16 bits)
-        memcpy (ptr, &(tcp_hdr->th_sport), sizeof (tcp_hdr->th_sport));
-        ptr += sizeof (tcp_hdr->th_sport);
-        chksumlen += sizeof (tcp_hdr->th_sport);
-
-        // Copy TCP destination port to buf (16 bits)
-        memcpy (ptr, &(tcp_hdr->th_dport), sizeof (tcp_hdr->th_dport));
-        ptr += sizeof (tcp_hdr->th_dport);
-        chksumlen += sizeof (tcp_hdr->th_dport);
-
-        // Copy sequence number to buf (32 bits)
-        memcpy (ptr, &(tcp_hdr->th_seq), sizeof (tcp_hdr->th_seq));
-        ptr += sizeof (tcp_hdr->th_seq);
-        chksumlen += sizeof (tcp_hdr->th_seq);
-
-        // Copy acknowledgement number to buf (32 bits)
-        memcpy (ptr, &(tcp_hdr->th_ack), sizeof (tcp_hdr->th_ack));
-        ptr += sizeof (tcp_hdr->th_ack);
-        chksumlen += sizeof (tcp_hdr->th_ack);
-
-        // Copy data offset to buf (4 bits) and
-        // copy reserved bits to buf (4 bits)
-        cvalue = (tcp_hdr->th_off << 4) + tcp_hdr->th_x2;
-        memcpy (ptr, &cvalue, sizeof (cvalue));
-        ptr += sizeof (cvalue);
-        chksumlen += sizeof (cvalue);
-
-        // Copy TCP flags to buf (8 bits)
-        memcpy (ptr, &(tcp_hdr->th_flags), sizeof (tcp_hdr->th_flags));
-        ptr += sizeof (tcp_hdr->th_flags);
-        chksumlen += sizeof (tcp_hdr->th_flags);
-
-        // Copy TCP window size to buf (16 bits)
-        memcpy (ptr, &(tcp_hdr->th_win), sizeof (tcp_hdr->th_win));
-        ptr += sizeof (tcp_hdr->th_win);
-        chksumlen += sizeof (tcp_hdr->th_win);
-
-        // Copy TCP checksum to buf (16 bits)
-        // Zero, since we don't know it yet
-        *ptr = 0; 
-        ptr++;
-        *ptr = 0; 
-        ptr++;
-        chksumlen += 2;
-
-        // Copy urgent pointer to buf (16 bits)
-        memcpy (ptr, &(tcp_hdr->th_urp), sizeof (tcp_hdr->th_urp));
-        ptr += sizeof (tcp_hdr->th_urp);
-        chksumlen += sizeof (tcp_hdr->th_urp);
-
-        return checksum ((uint16_t *) buf, chksumlen);
-}
 
 int
-main(void)
+main(int argc, char** argv)
 {
+        /* COMMAND LINE PARSING */
+
+        int src_port = kSRC_PORT_DEFAULT;
+        int dst_port = kDST_PORT_DEFAULT;
+
+        char src_addr[16];
+        char dst_addr[16];
+        memset(src_addr, 0, 16);
+        memset(dst_addr, 0, 16);
+        strncpy(src_addr, kIP_LOCALHOST, 16);
+        strncpy(dst_addr, kIP_LOCALHOST, 16);
+
+        parse_args(argc, argv, src_addr, &src_port, dst_addr, &dst_port);
+
+        printf("src: %s: %d\n", src_addr, src_port);
+        printf("dst: %s: %d\n", dst_addr, dst_port);
+
+
         const size_t kTOTAL_LEN = kIP_HDR_LEN + kTCP_HDR_LEN;
 
         char pkt[kPKT_MAX_LEN];
@@ -141,7 +56,7 @@ main(void)
         assert(sizeof(struct ip) == kIP_HDR_LEN);
         assert(sizeof(struct tcphdr) == kTCP_HDR_LEN);
 
-        struct sockaddr_in sin; /*, din; */
+        struct sockaddr_in sin; 
         int one = 1;
 
        
@@ -160,14 +75,14 @@ main(void)
         }
 
         sin.sin_family = AF_INET;
-        /* din.sin_family = AF_INET; */
 
-        sin.sin_port = htons(kSRC_PORT);
-        /* din.sin_port = htons(kDST_PORT); */
+        sin.sin_port = htons(src_port);
 
-        sin.sin_addr.s_addr = inet_addr(kSRC_ADDR);
-        /* din.sin_addr.s_addr = inet_addr(kDST_ADDR); */
-
+        sin.sin_addr.s_addr = inet_addr(src_addr);
+        if (sin.sin_addr.s_addr == INADDR_NONE) {
+                fprintf(stderr, "malformed inet_addr() request\n");
+                return FAILURE;
+        }
 
 
         /* FILL OUT IP HEADER */
@@ -189,65 +104,61 @@ main(void)
 
         ip_hdr->ip_p = IPPROTO_TCP;
 
-        s = inet_pton(AF_INET, kSRC_ADDR, &(ip_hdr->ip_src));
+        s = inet_pton(AF_INET, src_addr, &(ip_hdr->ip_src));
         if (s != 1) {
                 fprintf(stderr, "inet_pton() error: %s\n", strerror(errno));
                 return FAILURE;
         }
-        s = inet_pton(AF_INET, kDST_ADDR, &(ip_hdr->ip_dst));
+        s = inet_pton(AF_INET, dst_addr, &(ip_hdr->ip_dst));
         if (s != 1) {
                 fprintf(stderr, "inet_pton() error: %s\n", strerror(errno));
                 return FAILURE;
         }
 
         ip_hdr->ip_sum = 0;
-        /* checksum((uint16_t*) pkt, kIP_HDR_LEN + kTCP_HDR_LEN); */
+        /* internet_checksum(
+               (uint16_t*) pkt, kIP_HDR_LEN + kTCP_HDR_LEN); */
 
         
         /* FILL OUT TCP HEADER */
 #ifdef THIS_IS_OS_X
-        tcp_hdr->th_sport = htons(kSRC_PORT); /* TCP source port */
-        tcp_hdr->th_dport = htons(kDST_PORT); /* TCP dest port */
-        tcp_hdr->th_seq = htonl(0);           /* Sequence number */
-        tcp_hdr->th_ack = htonl(0);           /* Acknowledgement number */
-        tcp_hdr->th_x2 = 0;                   /* unused */
-        tcp_hdr->th_off = kTCP_HDR_LEN / 4;   /* Data offset */
-        tcp_hdr->th_flags = TH_SYN;           /* Flags */
+        tcp_hdr->th_sport = htons(src_port);  /* TCP source port */
+        tcp_hdr->th_dport = htons(src_port);  /* TCP dest port */
+        tcp_hdr->th_seq   = htonl(0);         /* Sequence number */
+        tcp_hdr->th_ack   = htonl(0);         /* Acknowledgement number */
+        tcp_hdr->th_x2    = 0;                /* unused */
+        tcp_hdr->th_off   = kTCP_HDR_LEN / 4; /* Data offset in 32-bit words */
+        tcp_hdr->th_flags = 0; /*TH_SYN;*/    /* Flags */
         /**
          * TH_CWR|TH_ECE|TH_URG|TH_ACK|TH_PSH|TH_RST|TH_SYN|TH_FIN
          *   0      0      0      0      0      0      0      0
          */
-        tcp_hdr->th_win = htons(65535);       /* Window */
-        tcp_hdr->th_urp = htons(0);           /* Urgent pointer */
-        tcp_hdr->th_sum = htons(tcp4_checksum(ip_hdr, tcp_hdr));
+        tcp_hdr->th_win   = htons(65535);     /* Window */
+        tcp_hdr->th_urp   = htons(0);         /* Urgent pointer */
+        tcp_hdr->th_sum   = 0; /* htons(tcp_checksum(ip_hdr, tcp_hdr)); */
 #elif defined(THIS_IS_LINUX)
-        tcp_hdr->source  = htons(kSRC_PORT);   /* TCP source port */
-        tcp_hdr->dest    = htons(kDST_PORT);   /* TCP dest port */
-        tcp_hdr->seq     = htonl(0);           /* Sequence number */
-        tcp_hdr->ack_seq = htonl(0);           /* Acknowledgement number */
-        tcp_hdr->res1    = 0;                  /* unused */
-        tcp_hdr->doff    = kTCP_HDR_LEN / 4;   /* Data offset */
+        tcp_hdr->source  = htons(src_port);   /* TCP source port */
+        tcp_hdr->dest    = htons(dst_port);   /* TCP dest port */
+        tcp_hdr->seq     = htonl(0);          /* Sequence number */
+        tcp_hdr->ack_seq = htonl(0);          /* Acknowledgement number */
+        tcp_hdr->res1    = 0;                 /* unused */
+        tcp_hdr->doff    = kTCP_HDR_LEN / 4;  /* Data offset in 32-bit words */
         tcp_hdr->fin     = 0;
-        tcp_hdr->syn     = 1;                  /* SYN */
+        tcp_hdr->syn     = 0; /*1;*/          /* SYN */
         tcp_hdr->rst     = 0;
         tcp_hdr->psh     = 0;
         tcp_hdr->ack     = 0;
         tcp_hdr->urg     = 0;
         tcp_hdr->res2    = 0;
-        /**
-         * TH_CWR|TH_ECE|TH_URG|TH_ACK|TH_PSH|TH_RST|TH_SYN|TH_FIN
-         *   0      0      0      0      0      0      0      0
-         */
         tcp_hdr->window  = htons(65535);       /* Window */
         tcp_hdr->urg_ptr = htons(0);           /* Urgent pointer */
-        tcp_hdr->check   = htons(tcp4_checksum(ip_hdr, tcp_hdr));
+        tcp_hdr->check   = 0; /* htons(tcp_checksum(ip_hdr, tcp_hdr)); */
 #else
   #error "Undetected OS. See include/os_detect.h"
 #endif
 
         
         printf("About to send\n");
-
 
         int i;
         for (i = 0; i < 10; i++) {

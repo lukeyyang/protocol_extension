@@ -21,7 +21,7 @@ udprecv: $(DIRECTORIES) $(DST_DIR)/udprecv
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.$(SRC_EXT)
 	$(CC) $< -o $@ $(CFLAGS) -c $(INC) 
 
-$(DST_DIR)/rawtcp: $(BUILD_DIR)/rawtcp.o 
+$(DST_DIR)/rawtcp: $(BUILD_DIR)/utility.o $(BUILD_DIR)/rawtcp.o 
 	$(CC) $^ -o $@
 
 $(DST_DIR)/rawudp: $(BUILD_DIR)/utility.o $(BUILD_DIR)/rawudp.o

@@ -126,10 +126,11 @@ main(int argc, char** argv)
         }
 
         ip_hdr->ip_sum = 0;
-        /* udp_checksum((uint16_t*) pkt, kIP_HDR_LEN + kUDP_HDR_LEN); */
+        ip_hdr->ip_sum = internet_checksum((uint16_t*) pkt, kIP_HDR_LEN);
 
         
         /* FILL OUT UDP HEADER */
+        /* checksum intentionally set to 0 */
 
 #ifdef THIS_IS_OS_X
         udp_hdr->uh_sport = htons(src_port); /* UDP source port */
