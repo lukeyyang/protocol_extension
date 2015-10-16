@@ -24,6 +24,7 @@ const static int kDST_PORT_DEFAULT = 64001;
 const static char* kIP_LOCALHOST = "127.0.0.1";
 
 
+/* usage: rawtcp [-h src_addr] [-f src_port] [-d dst_addr] [-p dst_port] */
 int
 main(int argc, char** argv)
 {
@@ -56,30 +57,45 @@ main(int argc, char** argv)
         assert(sizeof(struct ip) == kIP_HDR_LEN);
         assert(sizeof(struct tcphdr) == kTCP_HDR_LEN);
 
-        struct sockaddr_in sin; 
-        int one = 1;
+        struct sockaddr_in src_in, dst_in; 
 
        
-        /* SET UP SOCKET */
+        /* SET UP TWO SOCKETS */
         int sd = socket(PF_INET, SOCK_RAW, IPPROTO_TCP);
         if (sd < 0) {
-                fprintf(stderr, "socket() error: %s\n", strerror(errno));
+                fprintf(stderr, 
+                        "sd = socket() error: %s\n", strerror(errno));
+                return FAILURE;
+        }
+        int sd_normal = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+        if (sd_normal < 0) {
+                fprintf(stderr, 
+                        "sd_normal = socket() error: %s\n", strerror(errno));
                 return FAILURE;
         }
 
+
         int s = 1;
+        int one = 1;
         s = setsockopt(sd, IPPROTO_IP, IP_HDRINCL, &one, sizeof(one));
         if (s < 0) {
                 fprintf(stderr, "setsockopt() error: %s\n", strerror(errno));
                 return FAILURE;
         }
 
-        sin.sin_family = AF_INET;
+        src_in.sin_family = AF_INET;
+        dst_in.sin_family = AF_INET;
 
-        sin.sin_port = htons(src_port);
+        src_in.sin_port = htons(src_port);
+        dst_in.sin_port = htons(dst_port);
 
-        sin.sin_addr.s_addr = inet_addr(src_addr);
-        if (sin.sin_addr.s_addr == INADDR_NONE) {
+        src_in.sin_addr.s_addr = inet_addr(src_addr);
+        if (src_in.sin_addr.s_addr == INADDR_NONE) {
+                fprintf(stderr, "malformed inet_addr() request\n");
+                return FAILURE;
+        }
+        dst_in.sin_addr.s_addr = inet_addr(dst_addr);
+        if (dst_in.sin_addr.s_addr == INADDR_NONE) {
                 fprintf(stderr, "malformed inet_addr() request\n");
                 return FAILURE;
         }
@@ -123,7 +139,7 @@ main(int argc, char** argv)
         /* FILL OUT TCP HEADER */
 #ifdef THIS_IS_OS_X
         tcp_hdr->th_sport = htons(src_port);  /* TCP source port */
-        tcp_hdr->th_dport = htons(src_port);  /* TCP dest port */
+        tcp_hdr->th_dport = htons(dst_port);  /* TCP dest port */
         tcp_hdr->th_seq   = htonl(0);         /* Sequence number */
         tcp_hdr->th_ack   = htonl(0);         /* Acknowledgement number */
         tcp_hdr->th_x2    = 0;                /* unused */
@@ -159,19 +175,67 @@ main(int argc, char** argv)
 
         
         printf("About to send\n");
+        printf("This program will attempt to send our special packet 3\n"
+               "times, establish a TCP connection on the same socket,\n"
+               "send out a test message in a normal way, pause for 5\n"
+               "seconds, and send our special again for 3 times.\n");
+
+        /* initial attempt to send the special packet */
 
         int i;
-        for (i = 0; i < 10; i++) {
+        for (i = 0; i < 3; i++) {
                 if (sendto(sd, pkt, kTOTAL_LEN, 0, 
-                    (struct sockaddr *)&sin, sizeof(sin)) < 0) {
+                    (struct sockaddr*) &dst_in, sizeof(dst_in)) < 0) {
                         fprintf(stderr, "sendto() error: %s\n", strerror(errno));
                         return FAILURE;
                 } else {
-                        printf("%d - sendto() OK.\n", i);
+                        printf("%d - first group of special packet attempt"
+                               " - sendto() OK.\n", i);
                         sleep(1);
                 }
         }
 
+        /* establish a tcp connection the normal way */
+
+        s = bind(sd_normal, (struct sockaddr*) &src_in, sizeof(src_in));
+        if (s < 0) {
+                fprintf(stderr,
+                        "bind() error: %s\n", strerror(errno));
+                return FAILURE;
+        }
+        s = connect(sd_normal, (struct sockaddr*) &dst_in, sizeof(dst_in));
+        if (s < 0) {
+                fprintf(stderr, "connect() error: %s\n", strerror(errno));
+                close(sd);
+                return FAILURE;
+        }
+
+
+        char content[23] = "Connection established";
+        content[22] = 0;  // null terminated 
+        s = send(sd_normal, content, strlen(content), 0);
+        if (s < 0) {
+                fprintf(stderr, "send() error: %s\n", strerror(errno));
+        } else {
+                fprintf(stderr, "send() OK.\n");
+                sleep(5);
+        }
+
+        /* second attempt to send the special packet */
+
+        for (i = 0; i < 3; i++) {
+                if (sendto(sd, pkt, kTOTAL_LEN, 0, 
+                    (struct sockaddr*) &dst_in, sizeof(dst_in)) < 0) {
+                        fprintf(stderr, "sendto() error: %s\n", strerror(errno));
+                        return FAILURE;
+                } else {
+                        printf("%d - second group of special packet attempt"
+                               " - sendto() OK.\n", i);
+                        sleep(1);
+                }
+        }
+
+        close(sd_normal);
         close(sd);
         return 0;
 }

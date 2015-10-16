@@ -59,7 +59,7 @@ main(int argc, char** argv)
         socklen_t len;
         char msg[kBUFFER_MAX_LEN];
 
-        sd = socket(AF_INET, SOCK_STREAM, 0);
+        sd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         if (sd < 0) {
                 fprintf(stderr, 
                         "socket() error: %s\n", strerror(errno));
@@ -109,6 +109,7 @@ main(int argc, char** argv)
                         return FAILURE;
                 }
 
+                /*
                 struct hostent *hostp;
                 hostp = gethostbyaddr((const char*) &cliaddr.sin_addr.s_addr,
                     sizeof(cliaddr.sin_addr.s_addr), AF_INET);
@@ -118,6 +119,7 @@ main(int argc, char** argv)
                                 strerror(errno));
                         return FAILURE;
                 }
+                */
 
                 char* hostaddrp;
                 hostaddrp = inet_ntoa(cliaddr.sin_addr);
@@ -126,11 +128,8 @@ main(int argc, char** argv)
                                 "inet_ntoa() errorL %s\n", strerror(errno));
                         return FAILURE;
                 }
-                printf("established connection with %s (%s)\n",
-                       hostp->h_name,
+                printf("established connection with %s\n",
                        hostaddrp);
-
-
 
                 int i = 0;
 
@@ -143,9 +142,7 @@ main(int argc, char** argv)
                                 "read() error: %s\n", strerror(errno));
                         return FAILURE;
                 }
-                printf("Received %d UDP payload bytes:\n", n);
-                /*
-                int i;
+                printf("Received %d TCP payload bytes:\n", n);
                 for (i = 0; i < n; i++)
                         printf("%c", *(msg + i));
                 printf("\n");
@@ -155,7 +152,6 @@ main(int argc, char** argv)
                     (*(msg + n + i) != '\0' && n + i < kBUFFER_MAX_LEN); i++)
                         printf("0x%X, ", *(msg + n + i));
                 printf("\n");
-                */
                 printf("--------------------------------------------------\n");
         }
         return 0;
