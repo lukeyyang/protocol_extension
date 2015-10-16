@@ -58,7 +58,7 @@ main(int argc, char** argv)
         assert(sizeof(struct ip) == kIP_HDR_LEN);
         assert(sizeof(struct udphdr) == kUDP_HDR_LEN);
 
-        struct sockaddr_in sin;
+        struct sockaddr_in dst_in;
         int one = 1;
 
         /* SET UP SOCKET */
@@ -75,12 +75,12 @@ main(int argc, char** argv)
                 return FAILURE;
         }
 
-        sin.sin_family = AF_INET;
+        dst_in.sin_family = AF_INET;
 
-        sin.sin_port = htons(src_port);
+        dst_in.sin_port = htons(src_port);
 
-        sin.sin_addr.s_addr = inet_addr(src_addr);
-        if (sin.sin_addr.s_addr == INADDR_NONE) {
+        dst_in.sin_addr.s_addr = inet_addr(src_addr);
+        if (dst_in.sin_addr.s_addr == INADDR_NONE) {
                 fprintf(stderr, "malformed inet_addr() request\n");
                 return FAILURE;
         }
@@ -157,7 +157,7 @@ main(int argc, char** argv)
         int i;
         for (i = 0; i < 10; i++) {
                 if (sendto(sd, pkt, kTOTAL_PKT_LEN, 0, 
-                    (struct sockaddr *)&sin, sizeof(sin)) < 0) {
+                    (struct sockaddr*)&dst_in, sizeof(dst_in)) < 0) {
                         fprintf(stderr, "sendto() error: %s\n", strerror(errno));
                         return FAILURE;
                 } else {
