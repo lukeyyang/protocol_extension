@@ -95,18 +95,18 @@ main(int argc, char** argv)
         if (s < 0) {
                 fprintf(stderr,
                         "listen() error: %s\n", strerror(errno));
-                return FAILURE:
+                return FAILURE;
         }
 
         len = sizeof(cliaddr);
 
         while (1) {
 
-                clientfd = accept(sd, (struct sockadr*) &cliaddr, &len);
+                clientfd = accept(sd, (struct sockaddr*) &cliaddr, &len);
                 if (clientfd < 0) {
                         fprintf(stderr,
                                 "accept() error: %s\n", strerror(errno));
-                        return FAILURE:
+                        return FAILURE;
                 }
 
                 struct hostent *hostp;

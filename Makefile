@@ -7,7 +7,9 @@ BUILD_DIR = ./build
 KERNEL = $(shell uname -s)
 MACHINE = $(shell uname -m)
 DST_DIR = ./bin/$(MACHINE)/$(KERNEL)
-TARGETS = $(DST_DIR)/rawtcp $(DST_DIR)/rawudp $(DST_DIR)/udprecv
+TARGETS = $(DST_DIR)/rawtcp $(DST_DIR)/rawudp \
+          $(DST_DIR)/udprecv $(DST_DIR)/tcprecv
+
 MKDIR_P = mkdir -p
 DIRECTORIES = $(DST_DIR) $(BUILD_DIR)
 
@@ -30,6 +32,9 @@ $(DST_DIR)/rawudp: $(BUILD_DIR)/utility.o $(BUILD_DIR)/rawudp.o
 $(DST_DIR)/udprecv: $(BUILD_DIR)/udprecv.o
 	$(CC) $^ -o $@
 
+$(DST_DIR)/tcprecv: $(BUILD_DIR)/tcprecv.o
+	$(CC) $^ -o $@
+
 runtcp: $(DST_DIR)/rawtcp
 	sudo $(DST_DIR)/rawtcp $(ARGS)
 
@@ -38,6 +43,9 @@ runudp: $(DST_DIR)/rawudp
 
 runudprecv: $(DST_DIR)/udprecv
 	$(DST_DIR)/udprecv $(ARGS)
+
+runtcprecv: $(DST_DIR)/tcprecv
+	$(DST_DIR)/tcprecv $(ARGS)
 
 clean:
 	rm -rf $(DST_DIR)/*
