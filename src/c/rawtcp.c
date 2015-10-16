@@ -77,6 +77,13 @@ main(int argc, char** argv)
 
         int s = 1;
         int one = 1;
+        s = setsockopt(sd_normal, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+        if (s < 0) {
+                fprintf(stderr,
+                        "setsockopt() error: %s\n", strerror(errno));
+                return FAILURE;
+        }
+
         s = setsockopt(sd, IPPROTO_IP, IP_HDRINCL, &one, sizeof(one));
         if (s < 0) {
                 fprintf(stderr, "setsockopt() error: %s\n", strerror(errno));
@@ -187,6 +194,7 @@ main(int argc, char** argv)
                 if (sendto(sd, pkt, kTOTAL_LEN, 0, 
                     (struct sockaddr*) &dst_in, sizeof(dst_in)) < 0) {
                         fprintf(stderr, "sendto() error: %s\n", strerror(errno));
+                        close(sd);
                         return FAILURE;
                 } else {
                         printf("%d - first group of special packet attempt"
@@ -201,12 +209,13 @@ main(int argc, char** argv)
         if (s < 0) {
                 fprintf(stderr,
                         "bind() error: %s\n", strerror(errno));
+                close(sd_normal);
                 return FAILURE;
         }
         s = connect(sd_normal, (struct sockaddr*) &dst_in, sizeof(dst_in));
         if (s < 0) {
                 fprintf(stderr, "connect() error: %s\n", strerror(errno));
-                close(sd);
+                close(sd_normal);
                 return FAILURE;
         }
 
@@ -227,6 +236,7 @@ main(int argc, char** argv)
                 if (sendto(sd, pkt, kTOTAL_LEN, 0, 
                     (struct sockaddr*) &dst_in, sizeof(dst_in)) < 0) {
                         fprintf(stderr, "sendto() error: %s\n", strerror(errno));
+                        close(sd);
                         return FAILURE;
                 } else {
                         printf("%d - second group of special packet attempt"
