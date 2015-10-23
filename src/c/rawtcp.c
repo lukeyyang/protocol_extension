@@ -22,6 +22,7 @@ const static size_t kTCP_HDR_LEN = 20;
 const static int kSRC_PORT_DEFAULT = 64000;
 const static int kDST_PORT_DEFAULT = 64001;
 const static char* kIP_LOCALHOST = "127.0.0.1";
+const static char* kPAYLOAD = "Hello";
 
 
 /* usage: rawtcp [-h src_addr] [-f src_port] [-d dst_addr] [-p dst_port] */
@@ -46,7 +47,10 @@ main(int argc, char** argv)
         printf("dst: %s: %d\n", dst_addr, dst_port);
 
 
-        const size_t kTOTAL_LEN = kIP_HDR_LEN + kTCP_HDR_LEN;
+        /* prepare packet */
+
+        const size_t kTOTAL_LEN = kIP_HDR_LEN + kTCP_HDR_LEN
+                                + strlen(kPAYLOAD); /* now with data */
 
         char pkt[kPKT_MAX_LEN];
         memset(pkt, 0, kPKT_MAX_LEN);
@@ -114,7 +118,7 @@ main(int argc, char** argv)
         ip_hdr->ip_v  = 4;  /* Version */
         ip_hdr->ip_tos = 0; /* Type of service */
         ip_hdr->ip_id = htons(0);  /* identification: unused */
-        ip_hdr->ip_len = kTOTAL_LEN; /* Length */
+        ip_hdr->ip_len = kTOTAL_LEN; /* Length */ 
 
         char ip_flags[4];
         memset(ip_flags, 0, 4);
@@ -179,6 +183,10 @@ main(int argc, char** argv)
 #else
   #error "Undetected OS. See include/os_detect.h"
 #endif
+
+        /* stuff in some data */
+        char* payload = pkt + sizeof(struct ip) + sizeof(struct tcphdr);
+        memcpy(payload, kPAYLOAD, strlen(kPAYLOAD));
 
         
         printf("About to send\n");
