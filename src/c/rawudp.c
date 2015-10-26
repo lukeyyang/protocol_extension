@@ -153,9 +153,9 @@ main(int argc, char** argv)
             udp_options, kOPTIONS_LENGTH);
 
         
-        printf("About to send\n");
+        printf("About to send THREE special packets\n");
         int i;
-        for (i = 0; i < 10; i++) {
+        for (i = 0; i < 3; i++) {
                 if (sendto(sd, pkt, kTOTAL_PKT_LEN, 0, 
                     (struct sockaddr*)&dst_in, sizeof(dst_in)) < 0) {
                         fprintf(stderr, "sendto() error: %s\n", strerror(errno));

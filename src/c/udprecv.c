@@ -67,6 +67,12 @@ main(int argc, char** argv)
         int i = 0;
 
         while (1) {
+                /** IMPORTANT NOTE
+                 *  WITHOUT the below line bzero(), complie with gcc 5.2.0, 
+                 *  msg will end up containing more than n valid bytes, but 
+                 *  compiling with clang won't lead to such problem
+                 */
+                bzero(msg, kBUFFER_MAX_LEN);
                 len = sizeof(cliaddr);
                 n = recvfrom(sockfd, msg, kBUFFER_MAX_LEN, 0, 
                     (struct sockaddr *) &cliaddr, &len);
