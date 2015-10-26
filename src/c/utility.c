@@ -131,7 +131,7 @@ tcp_checksum(struct ip* ip_hdr, struct tcphdr* tcp_hdr)
 
         /* pull data from TCP header */
 
-#ifdef THIS_IS_OS_X
+#if defined(THIS_IS_OS_X) || defined(THIS_IS_CYGWIN)
 
         /* Copy TCP source port to buf (16 bits) */
         memcpy(ptr, &(tcp_hdr->th_sport), sizeof(tcp_hdr->th_sport));
@@ -229,7 +229,7 @@ tcp_checksum(struct ip* ip_hdr, struct tcphdr* tcp_hdr)
         chksumlen += 2;
 
         /* Copy urgent pointer to buf (16 bits) */
-#ifdef THIS_IS_OS_X
+#if defined(THIS_IS_OS_X) || defined(THIS_IS_CYGWIN)
         memcpy(ptr, &(tcp_hdr->th_urp), sizeof(tcp_hdr->th_urp));
         ptr += sizeof(tcp_hdr->th_urp);
         chksumlen += sizeof(tcp_hdr->th_urp);
