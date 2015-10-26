@@ -17,6 +17,8 @@
   #else
     #error "Unknown Apple OS"
   #endif
+#elif __CYGWIN__
+  #define THIS_IS_CYGWIN
 #elif __linux__
   #define THIS_IS_LINUX
 #elif __unix__

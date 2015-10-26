@@ -148,7 +148,8 @@ main(int argc, char** argv)
 
         
         /* FILL OUT TCP HEADER */
-#ifdef THIS_IS_OS_X
+        /* cygwin uses BSD flavor header */
+#if defined(THIS_IS_OS_X) || defined(THIS_IS_CYGWIN)
         tcp_hdr->th_sport = htons(src_port);  /* TCP source port */
         tcp_hdr->th_dport = htons(dst_port);  /* TCP dest port */
         tcp_hdr->th_seq   = htonl(0);         /* Sequence number */

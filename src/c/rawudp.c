@@ -130,9 +130,10 @@ main(int argc, char** argv)
 
         
         /* FILL OUT UDP HEADER */
+        /* cygwin uses BSD flavor header */
         /* checksum intentionally set to 0 */
 
-#ifdef THIS_IS_OS_X
+#if defined(THIS_IS_OS_X) || defined(THIS_IS_CYGWIN)
         udp_hdr->uh_sport = htons(src_port); /* UDP source port */
         udp_hdr->uh_dport = htons(dst_port); /* UDP dest port */
         udp_hdr->uh_ulen  = htons(kUDP_HDR_LEN + kTRAILER_OFFSET);
