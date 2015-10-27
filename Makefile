@@ -19,6 +19,7 @@ all: $(DIRECTORIES) $(TARGETS)
 tcp: $(DIRECTORIES) $(DST_DIR)/rawtcp
 udp: $(DIRECTORIES) $(DST_DIR)/rawudp
 udprecv: $(DIRECTORIES) $(DST_DIR)/udprecv
+tcprecv: $(DIRECTORIES) $(DST_DIR)/tcprecv
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.$(SRC_EXT)
 	$(CC) $< -o $@ $(CFLAGS) -c $(INC) 
