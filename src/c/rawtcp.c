@@ -25,10 +25,24 @@ const static char* kIP_LOCALHOST = "127.0.0.1";
 const static char* kPAYLOAD = "Hello";
 
 
+void print_info()
+{
+        printf("ARGS: [-h src_addr] [-f src_port] "
+               "[-d dst_addr] [-p dst_port]\n"
+               "*IMPORTANT*: source address (-h) is by default 127.0.0.1;\n"
+               "  unless you are receiving from localhost, you SHOULD change\n"
+               "  it to your real IP address\n"
+               "*IMPORTANT*: DO NOT re-use the same sending port within about\n"
+               "  three minutes\n");
+}
+
 /* usage: rawtcp [-h src_addr] [-f src_port] [-d dst_addr] [-p dst_port] */
 int
 main(int argc, char** argv)
 {
+        /* Print out some useful information */
+        print_info();
+
         /* COMMAND LINE PARSING */
 
         int src_port = kSRC_PORT_DEFAULT;
