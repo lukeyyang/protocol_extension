@@ -142,7 +142,7 @@ prepare_tcp_pkt(char** pkt_p,
 
 }
 
-/* usage: twhs [-h src_addr] [-f src_port] [-d dst_addr] [-p dst_port] */
+/* usage: twhs_client [-h src_addr] [-f src_port] [-d dst_addr] [-p dst_port] */
 int
 main(int argc, char** argv)
 {
@@ -203,7 +203,7 @@ main(int argc, char** argv)
         }
      
         /* get a socket to play with */
-        int sd = socket(PF_INET, SOCK_RAW, IPPROTO_TCP);
+        int sd = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
         if (sd < 0) {
                 fprintf(stderr, 
                         "sd = socket() error: %s\n", strerror(errno));
@@ -214,7 +214,8 @@ main(int argc, char** argv)
         int one = 1;
         s = setsockopt(sd, IPPROTO_IP, IP_HDRINCL, &one, sizeof(one));
         if (s < 0) {
-                fprintf(stderr, "setsockopt() error: %s\n", strerror(errno));
+                fprintf(stderr, 
+                        "setsockopt() error: %s\n", strerror(errno));
                 return FAILURE;
         }
 
