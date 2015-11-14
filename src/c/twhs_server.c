@@ -54,9 +54,8 @@ main(int argc, char** argv)
                 }
         }
 
-        int sd, n, clientfd;
-        struct sockaddr_in servaddr, cliaddr;
-        socklen_t len;
+        int sd, n;
+        struct sockaddr_in servaddr;
 
         sd = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
         if (sd < 0) {
@@ -133,22 +132,14 @@ main(int argc, char** argv)
                 memset(src_addr, 0, 16);
                 memset(dst_addr, 0, 16);
 
-                s = inet_ntop(AF_INET, &(ip_hdr->ip_src), src_addr, 16);
-                if (s != 1) {
-                        fprintf(stderr, 
-                                "inet_pton() error: %s\n", strerror(errno));
-                        return;
-                }
-                s = inet_ntop(AF_INET, &(ip_hdr->ip_dst), dst_addr, 16);
-                if (s != 1) {
-                        fprintf(stderr, 
-                                "inet_pton() error: %s\n", strerror(errno));
-                        return;
-                }
+                inet_ntop(AF_INET, &(ip_hdr->ip_src), src_addr, 16);
+                inet_ntop(AF_INET, &(ip_hdr->ip_dst), dst_addr, 16);
+
                 printf("received IP packet from %s to %s\n", 
                        src_addr, dst_addr);
 
-                struct tcphdr* = (struct tcphdr*) (msg + sizeof(struct ip));
+                struct tcphdr* tcp_hdr
+                        = (struct tcphdr*) (msg + sizeof(struct ip));
 
                 if (
 #if defined(THIS_IS_OS_X) || defined(THIS_IS_CYGWIN)
@@ -188,7 +179,7 @@ main(int argc, char** argv)
                         fprintf(stderr, "unrecognized TCP flag\n");
                 }
 
-        }
+        } // for (;;)
 
 
 
@@ -196,66 +187,6 @@ main(int argc, char** argv)
 
 
 
-        /**
-         * listen(): make this socket ready to accept connection requests
-         *           allow 5 requests to queue up
-         */
-        s = listen(sd, 5);
-        if (s < 0) {
-                fprintf(stderr,
-                        "listen() error: %s\n", strerror(errno));
-                return FAILURE;
-        }
-
-        len = sizeof(cliaddr);
-
-        while (1) {
-
-                clientfd = accept(sd, (struct sockaddr*) &cliaddr, &len);
-                if (clientfd < 0) {
-                        fprintf(stderr,
-                                "accept() error: %s\n", strerror(errno));
-                        return FAILURE;
-                }
-
-                /*
-                struct hostent *hostp;
-                hostp = gethostbyaddr((const char*) &cliaddr.sin_addr.s_addr,
-                    sizeof(cliaddr.sin_addr.s_addr), AF_INET);
-                if (hostp == NULL) {
-                        fprintf(stderr,
-                                "gethostbyaddr() error: %s\n", 
-                                strerror(errno));
-                        return FAILURE;
-                }
-                */
-
-                char* hostaddrp;
-                hostaddrp = inet_ntoa(cliaddr.sin_addr);
-                if (hostaddrp == NULL) {
-                        fprintf(stderr,
-                                "inet_ntoa() errorL %s\n", strerror(errno));
-                        return FAILURE;
-                }
-                printf("established connection with %s\n",
-                       hostaddrp);
-
-                int i = 0;
-
-                printf("\t%d\n", i++);
-                printf("--------------------------------------------------\n");
-
-                for (i = 0; i < n; i++)
-                        printf("%c", *(msg + i));
-                printf("\n");
-                printf("Continue printing the receive buffer, "
-                       "until a NULL byte is seen:\n");
-                for (i = 0; 
-                    (*(msg + n + i) != '\0' && n + i < kBUFFER_MAX_LEN); i++)
-                        printf("0x%X, ", *(msg + n + i));
-                printf("\n");
-                printf("--------------------------------------------------\n");
-        }
         return 0;
 }
 
