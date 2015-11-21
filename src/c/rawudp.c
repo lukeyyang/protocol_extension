@@ -62,7 +62,7 @@ main(int argc, char** argv)
         int one = 1;
 
         /* SET UP SOCKET */
-        int sd = socket(PF_INET, SOCK_RAW, IPPROTO_UDP);
+        int sd = socket(AF_INET, SOCK_RAW, IPPROTO_UDP);
         if (sd < 0) {
                 fprintf(stderr, "socket() error: %s\n", strerror(errno));
                 return FAILURE;

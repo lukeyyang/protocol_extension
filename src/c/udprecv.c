@@ -56,7 +56,7 @@ main(int argc, char** argv)
         socklen_t len;
         char msg[kBUFFER_MAX_LEN];
 
-        sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+        sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 
         bzero(&servaddr, sizeof(servaddr));
         servaddr.sin_family = AF_INET;

@@ -14,6 +14,7 @@
 #include <assert.h>
 
 #include "os_detect.h"
+#include "utility.h"
 
 #define FAILURE -1
 
@@ -22,6 +23,7 @@ extern char* optarg;
 const static size_t kIP_HDR_LEN = 20;
 const static size_t kTCP_HDR_LEN = 20;
 const static size_t kBUFFER_MAX_LEN = 256;
+const static size_t kPKT_MAX_LEN = 256;
 const static int kLISTEN_PORT_DEFAULT = 64001;
 
 /* usage: twhs_server [-p port] */
@@ -29,7 +31,7 @@ int
 main(int argc, char** argv)
 {
         /* command line argument: port number to listen to */
-        int dst_port = kLISTEN_PORT_DEFAULT;
+        int local_port = kLISTEN_PORT_DEFAULT;
         int ch = -1;
         int num = 0;
         while ((ch = getopt(argc, argv, "p:")) != -1) {
@@ -41,7 +43,7 @@ main(int argc, char** argv)
                                         "Invalid port number to listen to, "
                                         "reset to default 64001\n");
                         } else {
-                                dst_port = num;
+                                local_port = num;
                         }
                         break;
                 case '?':
@@ -77,7 +79,7 @@ main(int argc, char** argv)
         bzero(&servaddr, sizeof(servaddr));
         servaddr.sin_family = AF_INET;
         servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-        servaddr.sin_port = htons((unsigned short) dst_port);
+        servaddr.sin_port = htons((unsigned short) local_port);
         s = bind(sd, (struct sockaddr*) &servaddr, sizeof(servaddr));
         if (s < 0) {
                 fprintf(stderr,
@@ -85,7 +87,7 @@ main(int argc, char** argv)
                 return FAILURE;
         }
 
-        printf("Listening to localhost port: %d\n", dst_port);
+        printf("Listening to localhost port: %d\n", local_port);
 
         for (;;) {
                 char msg[kBUFFER_MAX_LEN];
@@ -97,6 +99,8 @@ main(int argc, char** argv)
                         return FAILURE;
                 }
                 printf("Received %d bytes\n", n);
+                //hexdump("received_packet", (void*) msg, n);
+
                 if (n < kIP_HDR_LEN) {
                         fprintf(stderr,
                                 "fatal: received incomplete IP header\n");
@@ -107,6 +111,9 @@ main(int argc, char** argv)
                                 "TCP headers\n");
                         return FAILURE;
                 }
+                
+                /* it turns out we get the whole ethernet frame * */
+
 
                 /* check it's TCP first */
                 struct ip* ip_hdr = (struct ip*) msg;
@@ -115,10 +122,11 @@ main(int argc, char** argv)
                                 "fatal: IP header corrupt\n");
                         return FAILURE;
                 }
-                if (ip_hdr->ip_len != n) {
+                if (ntohs(ip_hdr->ip_len) != n) {
                         fprintf(stderr,
                                 "fatal: IP header indicates a different "
-                                "byte count from read()\n");
+                                "byte count from read(): %d\n", 
+                                ntohs(ip_hdr->ip_len));
                         return FAILURE;
                 }
                 if (ip_hdr->ip_p != IPPROTO_TCP) {
@@ -127,16 +135,16 @@ main(int argc, char** argv)
                                 "a TCP packet\n");
                         return FAILURE;
                 }
-                char src_addr[16];
-                char dst_addr[16];
-                memset(src_addr, 0, 16);
-                memset(dst_addr, 0, 16);
+                char incoming_src_addr[16];
+                char incoming_dst_addr[16];
+                memset(incoming_src_addr, 0, 16);
+                memset(incoming_dst_addr, 0, 16);
 
-                inet_ntop(AF_INET, &(ip_hdr->ip_src), src_addr, 16);
-                inet_ntop(AF_INET, &(ip_hdr->ip_dst), dst_addr, 16);
+                inet_ntop(AF_INET, &(ip_hdr->ip_src), incoming_src_addr, 16);
+                inet_ntop(AF_INET, &(ip_hdr->ip_dst), incoming_dst_addr, 16);
 
                 printf("received IP packet from %s to %s\n", 
-                       src_addr, dst_addr);
+                       incoming_src_addr, incoming_dst_addr);
 
                 struct tcphdr* tcp_hdr
                         = (struct tcphdr*) (msg + sizeof(struct ip));
@@ -153,9 +161,55 @@ main(int argc, char** argv)
                         printf("received a SYN packet. wait for 5 sec.\n");
                         sleep(5);
                         printf("send SYN ACK\n");
-                } else if ( /* note: below two logic are not strictly equal */
+
+
+                        /* from which port, to which port */
+                        int dst_port = ntohs(
 #if defined(THIS_IS_OS_X) || defined(THIS_IS_CYGWIN)
-                    tcp_hdr->th_flags == 0 
+                                             tcp_hdr->th_sport
+#elif defined(THIS_IS_LINUX)
+                                             tcp_hdr->source
+#else
+  #error "Undetected OS. See include/os_detect.h"
+#endif
+                                       );
+ 
+                        /* prepare address data structure */
+
+                        struct sockaddr_in dst_in; 
+                        dst_in.sin_family = AF_INET;
+                        dst_in.sin_port = htons(dst_port);
+                        dst_in.sin_addr.s_addr = inet_addr(incoming_src_addr);
+                 
+                        char* synack_pkt = malloc(kPKT_MAX_LEN);
+                        memset(synack_pkt, 0, kPKT_MAX_LEN);
+
+                        prepare_tcp_pkt(kPKT_TYPE_SYNACK, 
+                                        &synack_pkt, 
+                                        local_port, 
+                                        dst_port, 
+                                        incoming_dst_addr, 
+                                        incoming_src_addr);
+
+                        const size_t kSYNACK_PKT_LEN = kIP_HDR_LEN 
+                                                     + kTCP_HDR_LEN;
+                        /* SYNACK */
+
+                        if (sendto(sd, synack_pkt, kSYNACK_PKT_LEN, 0, 
+                                   (struct sockaddr*) &dst_in, sizeof(dst_in)) 
+                            < 0) {
+                                fprintf(stderr, 
+                                        "sendto() error: %s\n", strerror(errno));
+                        } else {
+                                printf("\tSYNACK packet successfully sent\n");
+                        }
+
+                        free(synack_pkt);
+
+
+                } else if ( 
+#if defined(THIS_IS_OS_X) || defined(THIS_IS_CYGWIN)
+                    ((tcp_hdr->th_flags & (TH_SYN | TH_ACK)) == 0)
 #elif defined(THIS_IS_LINUX)
                     (tcp_hdr->syn == 0) && (tcp_hdr->ack == 0)
 #else

@@ -37,110 +37,6 @@ print_info()
                "  three minutes\n");
 }
 
-/* prepares a raw tcp SYN or OOB packet */
-void
-prepare_tcp_pkt(char** pkt_p, 
-                int is_pkt_oob,
-                int src_port,
-                int dst_port,
-                char* src_addr,
-                char* dst_addr)
-{
-
-        /* total length includes payload length for OOB packet */
-        const size_t kTOTAL_LEN = kIP_HDR_LEN + kTCP_HDR_LEN
-                                + ((!is_pkt_oob) ? 0 : strlen(kPAYLOAD));
-        
-        char* pkt = *pkt_p;
-
-        struct ip* ip_hdr = (struct ip*) pkt;
-        struct tcphdr* tcp_hdr = (struct tcphdr*) (pkt + sizeof(struct ip));
-
-        assert(sizeof(struct ip) == kIP_HDR_LEN);
-        assert(sizeof(struct tcphdr) == kTCP_HDR_LEN);
-
-
-        /* FILL OUT IP HEADER */
-
-        ip_hdr->ip_hl = 5;  /* Internet Header Length */
-        ip_hdr->ip_v  = 4;  /* Version */
-        ip_hdr->ip_tos = 0; /* Type of service */
-        ip_hdr->ip_id = htons(0);  /* identification: unused */
-        ip_hdr->ip_len = kTOTAL_LEN; /* Length */ 
-
-        char ip_flags[4];
-        memset(ip_flags, 0, 4);
-
-        ip_hdr->ip_off = htons((ip_flags[0] << 15)
-                             + (ip_flags[1] << 14)
-                             + (ip_flags[2] << 13)
-                             +  ip_flags[3]);
-        ip_hdr->ip_ttl = 255;
-
-        ip_hdr->ip_p = IPPROTO_TCP;
-
-        int s = 1;
-        s = inet_pton(AF_INET, src_addr, &(ip_hdr->ip_src));
-        if (s != 1) {
-                fprintf(stderr, "inet_pton() error: %s\n", strerror(errno));
-                return;
-        }
-        s = inet_pton(AF_INET, dst_addr, &(ip_hdr->ip_dst));
-        if (s != 1) {
-                fprintf(stderr, "inet_pton() error: %s\n", strerror(errno));
-                return;
-        }
-
-        ip_hdr->ip_sum = 0;
-        /* internet_checksum(
-               (uint16_t*) pkt, kIP_HDR_LEN + kTCP_HDR_LEN); */
-
-        
-        /* FILL OUT TCP HEADER */
-        /* cygwin uses BSD flavor header */
-#if defined(THIS_IS_OS_X) || defined(THIS_IS_CYGWIN)
-        tcp_hdr->th_sport = htons(src_port);  /* TCP source port */
-        tcp_hdr->th_dport = htons(dst_port);  /* TCP dest port */
-        tcp_hdr->th_seq   = htonl(0);         /* Sequence number */
-        tcp_hdr->th_ack   = htonl(0);         /* Acknowledgement number */
-        tcp_hdr->th_x2    = 0;                /* unused */
-        tcp_hdr->th_off   = kTCP_HDR_LEN / 4; /* Data offset in 32-bit words */
-        tcp_hdr->th_flags = ((!is_pkt_oob) ? TH_SYN : 0);  /* Flags */
-        /**
-         * TH_CWR|TH_ECE|TH_URG|TH_ACK|TH_PSH|TH_RST|TH_SYN|TH_FIN
-         *   0      0      0      0      0      0      0      0
-         */
-        tcp_hdr->th_win   = htons(65535);     /* Window */
-        tcp_hdr->th_urp   = htons(0);         /* Urgent pointer */
-        tcp_hdr->th_sum   = 0; /* htons(tcp_checksum(ip_hdr, tcp_hdr)); */
-#elif defined(THIS_IS_LINUX)
-        tcp_hdr->source  = htons(src_port);   /* TCP source port */
-        tcp_hdr->dest    = htons(dst_port);   /* TCP dest port */
-        tcp_hdr->seq     = htonl(0);          /* Sequence number */
-        tcp_hdr->ack_seq = htonl(0);          /* Acknowledgement number */
-        tcp_hdr->res1    = 0;                 /* unused */
-        tcp_hdr->doff    = kTCP_HDR_LEN / 4;  /* Data offset in 32-bit words */
-        tcp_hdr->fin     = 0;
-        tcp_hdr->syn     = ((!is_pkt_oob) ? 1 : 0);  /* SYN */
-        tcp_hdr->rst     = 0;
-        tcp_hdr->psh     = 0;
-        tcp_hdr->ack     = 0;
-        tcp_hdr->urg     = 0;
-        tcp_hdr->res2    = 0;
-        tcp_hdr->window  = htons(65535);       /* Window */
-        tcp_hdr->urg_ptr = htons(0);           /* Urgent pointer */
-        tcp_hdr->check   = 0; /* htons(tcp_checksum(ip_hdr, tcp_hdr)); */
-#else
-  #error "Undetected OS. See include/os_detect.h"
-#endif
-
-        /* stuff in some data for the OOB packet */
-        if (is_pkt_oob == 1) {
-                char* payload = pkt + sizeof(struct ip) + sizeof(struct tcphdr);
-                memcpy(payload, kPAYLOAD, strlen(kPAYLOAD));
-        }
-
-}
 
 /* usage: twhs_client [-h src_addr] [-f src_port] [-d dst_addr] [-p dst_port] */
 int
@@ -174,8 +70,10 @@ main(int argc, char** argv)
         memset(syn_pkt, 0, kPKT_MAX_LEN);
         memset(oob_pkt, 0, kPKT_MAX_LEN);
 
-        prepare_tcp_pkt(&syn_pkt, 0, src_port, dst_port, src_addr, dst_addr);
-        prepare_tcp_pkt(&oob_pkt, 1, src_port, dst_port, src_addr, dst_addr);
+        prepare_tcp_pkt(kPKT_TYPE_SYN, 
+                        &syn_pkt, src_port, dst_port, src_addr, dst_addr);
+        prepare_tcp_pkt(kPKT_TYPE_OOB,
+                        &oob_pkt, src_port, dst_port, src_addr, dst_addr);
 
         const size_t kSYN_PKT_LEN = kIP_HDR_LEN + kTCP_HDR_LEN;
         const size_t kOOB_PKT_LEN = kIP_HDR_LEN + kTCP_HDR_LEN
@@ -221,10 +119,24 @@ main(int argc, char** argv)
 
         
         printf("About to start experiment\n");
-        printf("This program will send a SYN packet, wait for 1 second, \n"
-               "and send an OOB packet. The receiver is expected to return \n"
+        printf("This program will send an OOB packet and wait for 3 sec. \n"
+               "Then, it sends a SYN packet, wait for 1 second, and sends \n"
+               "an OOB packet again. The receiver is expected to return \n"
                "a SYN-ACK packet 5 seconds after it receives the SYN. When \n"
                "this program receives the SYN-ACK, it sends the OOB again.\n");
+
+        /* OOB first */
+
+        if (sendto(sd, oob_pkt, kOOB_PKT_LEN , 0, 
+                   (struct sockaddr*) &dst_in, sizeof(dst_in)) < 0) {
+                fprintf(stderr, "sendto() error: %s\n", strerror(errno));
+                close(sd);
+                return FAILURE;
+        } else {
+                printf("\tOOB packet successfully sent; about to SYN\n");
+                sleep(3);
+        }
+
 
         /* SYN first */
 
@@ -238,7 +150,7 @@ main(int argc, char** argv)
                 sleep(1);
         }
 
-        /* now OOB */
+        /* now OOB again */
 
         if (sendto(sd, oob_pkt, kOOB_PKT_LEN , 0, 
                    (struct sockaddr*) &dst_in, sizeof(dst_in)) < 0) {
@@ -247,6 +159,7 @@ main(int argc, char** argv)
                 return FAILURE;
         } else {
                 printf("\tOOB packet successfully sent; wait for SYN-ACK\n");
+                sleep(1);
         }
 
 

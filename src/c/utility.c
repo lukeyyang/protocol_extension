@@ -6,6 +6,8 @@
 #include <string.h>
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
+#include <arpa/inet.h>
+#include <assert.h>
 
 #include "os_detect.h"
 #include "utility.h"
@@ -14,7 +16,148 @@
                          "[-f source_port]"\
                          "[-d dest_addr]"\
                          "[-p dest_port]\n"
+
 const static size_t kPKT_MAX_LEN = 1024;
+const static size_t kIP_HDR_LEN = 20;
+const static size_t kTCP_HDR_LEN = 20;
+const static char* kOOB_PAYLOAD = "Hello";
+
+/* prepare an TCP/IP packet: OOB w/ payload, SYN, SYNACK, ACK */
+void
+prepare_tcp_pkt(const int pkt_type,
+                char** pkt_p, 
+                const int src_port,
+                const int dst_port,
+                char* src_addr,
+                char* dst_addr)
+{
+        char pkt_is_oob    = 0;
+        char pkt_is_syn    = 0;
+        char pkt_is_ack    = 0;
+        char pkt_is_synack = 0;
+        switch (pkt_type) {
+        case kPKT_TYPE_OOB:
+                pkt_is_oob = 1;
+                break;
+        case kPKT_TYPE_SYN:
+                pkt_is_syn = 1;
+                break;
+        case kPKT_TYPE_SYNACK:
+                pkt_is_synack = 1;
+                break;
+        case kPKT_TYPE_ACK:
+                pkt_is_ack = 1;
+                break;
+        default:
+                fprintf(stderr, 
+                        "prepare_tcp_pkt() error: "
+                        "unrecognized target packet type!\n");
+                return;
+                break; /* never gets there */
+        }
+        assert((pkt_is_oob || pkt_is_syn) || (pkt_is_synack || pkt_is_ack));
+
+        /* total length includes payload length for OOB packet */
+        const size_t kTOTAL_LEN = kIP_HDR_LEN + kTCP_HDR_LEN
+                                + ((pkt_is_oob) ? strlen(kOOB_PAYLOAD) : 0);
+        
+        char* pkt = *pkt_p;
+
+        struct ip* ip_hdr = (struct ip*) pkt;
+        struct tcphdr* tcp_hdr = (struct tcphdr*) (pkt + sizeof(struct ip));
+
+        assert(sizeof(struct ip) == kIP_HDR_LEN);
+        assert(sizeof(struct tcphdr) == kTCP_HDR_LEN);
+
+
+        /* FILL OUT IP HEADER */
+
+        ip_hdr->ip_hl = 5;  /* Internet Header Length */
+        ip_hdr->ip_v  = 4;  /* Version */
+        ip_hdr->ip_tos = 0; /* Type of service */
+        ip_hdr->ip_id = htons(0);  /* identification: unused */
+        ip_hdr->ip_len = kTOTAL_LEN; /* Length */ 
+
+        char ip_flags[4];
+        memset(ip_flags, 0, 4);
+
+        ip_hdr->ip_off = htons((ip_flags[0] << 15)
+                             + (ip_flags[1] << 14)
+                             + (ip_flags[2] << 13)
+                             +  ip_flags[3]);
+        ip_hdr->ip_ttl = 255;
+
+        ip_hdr->ip_p = IPPROTO_TCP;
+
+        int s = 1;
+        s = inet_pton(AF_INET, src_addr, &(ip_hdr->ip_src));
+        if (s != 1) {
+                fprintf(stderr, "inet_pton() error: %s\n", strerror(errno));
+                return;
+        }
+        s = inet_pton(AF_INET, dst_addr, &(ip_hdr->ip_dst));
+        if (s != 1) {
+                fprintf(stderr, "inet_pton() error: %s\n", strerror(errno));
+                return;
+        }
+
+        ip_hdr->ip_sum = 0;
+        /* internet_checksum(
+               (uint16_t*) pkt, kIP_HDR_LEN + kTCP_HDR_LEN); */
+
+        
+        /* FILL OUT TCP HEADER */
+        /* cygwin uses BSD flavor header */
+#if defined(THIS_IS_OS_X) || defined(THIS_IS_CYGWIN)
+        tcp_hdr->th_sport = htons(src_port);  /* TCP source port */
+        tcp_hdr->th_dport = htons(dst_port);  /* TCP dest port */
+        tcp_hdr->th_seq   = htonl(0);         /* Sequence number */
+        tcp_hdr->th_ack   = htonl(0);         /* Acknowledgement number */
+        tcp_hdr->th_x2    = 0;                /* unused */
+        tcp_hdr->th_off   = kTCP_HDR_LEN / 4; /* Data offset in 32-bit words */
+        if (pkt_is_oob) {
+                tcp_hdr->th_flags = 0;
+        } else if (pkt_is_syn) {
+                tcp_hdr->th_flags = TH_SYN;
+        } else if (pkt_is_synack) {
+                tcp_hdr->th_flags = TH_SYN | TH_ACK;
+        } else if (pkt_is_ack) {
+                tcp_hdr->th_flags = TH_ACK;
+        } else {
+                assert(0);
+        }
+        tcp_hdr->th_win   = htons(65535);     /* Window */
+        tcp_hdr->th_urp   = htons(0);         /* Urgent pointer */
+        tcp_hdr->th_sum   = 0; /* htons(tcp_checksum(ip_hdr, tcp_hdr)); */
+#elif defined(THIS_IS_LINUX)
+        tcp_hdr->source  = htons(src_port);   /* TCP source port */
+        tcp_hdr->dest    = htons(dst_port);   /* TCP dest port */
+        tcp_hdr->seq     = htonl(0);          /* Sequence number */
+        tcp_hdr->ack_seq = htonl(0);          /* Acknowledgement number */
+        tcp_hdr->res1    = 0;                 /* unused */
+        tcp_hdr->doff    = kTCP_HDR_LEN / 4;  /* Data offset in 32-bit words */
+        tcp_hdr->fin     = 0;
+        tcp_hdr->syn     = pkt_is_syn | pkt_is_synack;
+        tcp_hdr->rst     = 0;
+        tcp_hdr->psh     = 0;
+        tcp_hdr->ack     = pkt_is_ack | pkt_is_synack;
+        tcp_hdr->urg     = 0;
+        tcp_hdr->res2    = 0;
+        tcp_hdr->window  = htons(65535);       /* Window */
+        tcp_hdr->urg_ptr = htons(0);           /* Urgent pointer */
+        tcp_hdr->check   = 0; /* htons(tcp_checksum(ip_hdr, tcp_hdr)); */
+#else
+  #error "Undetected OS. See include/os_detect.h"
+#endif
+
+        /* stuff in some data for the OOB packet */
+        if (pkt_is_oob) {
+                char* payload = pkt + sizeof(struct ip) + sizeof(struct tcphdr);
+                memcpy(payload, kOOB_PAYLOAD, strlen(kOOB_PAYLOAD));
+        }
+
+}
+
 
 /* process command line arguments */
 void 
@@ -244,4 +387,38 @@ tcp_checksum(struct ip* ip_hdr, struct tcphdr* tcp_hdr)
         return internet_checksum((uint16_t*) buf, chksumlen);
 }
 
+/* hexdump. has some problems though TODO */
+void 
+hexdump(const char* const desc, const void* const addr, int len)
+{
+        int i;
+        unsigned char buff[17];
+        unsigned char* pc = (unsigned char*) addr;
 
+        if (desc != NULL) {
+                printf("%s:\n", desc);
+        }
+
+        for (i = 0; i < len; i++) {
+                if ((i % 16) == 0) {
+                        if (i != 0) {
+                                printf("  %s\n", buff);
+                        }
+                        printf("  %04x ", i);
+                }
+                printf(" %02x", pc[i]);
+                if ((pc[i] < 0x20) || (pc[i] > 0x7e)) {
+                        buff[i % 16] = '.';
+                } else {
+                        buff[(i % 16) + 1] = '\0';
+                }
+                buff[(i % 16) + 1] = '\0';
+        }
+
+        while ((i % 16) != 0) {
+                printf("   ");
+                i++;
+        }
+
+        printf("  %s\n", buff);
+}
