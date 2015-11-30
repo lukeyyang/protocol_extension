@@ -25,7 +25,7 @@ const int    kDST_PORT_DEFAULT    = 64001;
 const int    kLISTEN_PORT_DEFAULT = 64001;
 
 const char*  kIP_LOCALHOST        = "127.0.0.1";
-const char*  kPAYLOAD             = "Hello";
+const char*  kPAYLOAD             = "Hello ";
 const char*  kPARSE_USAGE         = kUSAGE;
 const char*  kPARSE_USAGE_SIMPLE  = kUSAGE_SIMPLE;
 

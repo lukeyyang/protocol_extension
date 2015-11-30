@@ -8,6 +8,7 @@
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <assert.h>
+#include <time.h>
 
 #include "os_detect.h"
 #include "utility.h"
@@ -50,7 +51,7 @@ prepare_tcp_pkt(const int pkt_type,
 
         /* total length includes payload length for OOB packet */
         const size_t kTOTAL_LEN = kIP_HDR_LEN + kTCP_HDR_LEN
-                                + ((pkt_is_oob) ? strlen(kPAYLOAD) : 0);
+                                + ((pkt_is_oob) ? strlen(kPAYLOAD): 0);
         
         char* pkt = *pkt_p;
 
@@ -145,6 +146,12 @@ prepare_tcp_pkt(const int pkt_type,
         if (pkt_is_oob) {
                 char* payload = pkt + sizeof(struct ip) + sizeof(struct tcphdr);
                 memcpy(payload, kPAYLOAD, strlen(kPAYLOAD));
+                char* payload_num = 
+                        pkt + sizeof(struct ip) + sizeof(struct tcphdr) 
+                        + strlen(kPAYLOAD) - 1;
+                srand(time(NULL));
+                char rand_numchar = (char) ((rand() % 10) + '0');
+                memcpy(payload_num, &rand_numchar, 1);
         }
 
 }
@@ -406,7 +413,7 @@ tcp_checksum(struct ip* ip_hdr, struct tcphdr* tcp_hdr)
         return internet_checksum((uint16_t*) buf, chksumlen);
 }
 
-/* hexdump. has some problems though TODO */
+/* hexdump of a char buffer */
 void 
 hexdump(const char* const desc, const void* const addr, int len)
 {
@@ -429,7 +436,7 @@ hexdump(const char* const desc, const void* const addr, int len)
                 if ((pc[i] < 0x20) || (pc[i] > 0x7e)) {
                         buff[i % 16] = '.';
                 } else {
-                        buff[(i % 16) + 1] = '\0';
+                        buff[i % 16] = pc[i];
                 }
                 buff[(i % 16) + 1] = '\0';
         }

@@ -27,13 +27,14 @@ main(int argc, char** argv)
         int local_port = kLISTEN_PORT_DEFAULT;
         parse_args_simple(argc, argv, &local_port);
 
-        /* get a socket to play with */
-        int sd = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
+        /* get two sockets to play with */
+        int sd  = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
         if (sd < 0) {
                 fprintf(stderr, 
                         "socket() error: %s\n", strerror(errno));
                 return FAILURE;
         }
+
 
         int s = 1;
         int one = 1;
@@ -60,22 +61,40 @@ main(int argc, char** argv)
                 return FAILURE;
         }
 
-        printf("Using port: %d\n", local_port);
+        /* dummy address for the client */
+        struct sockaddr_in cli_addr;
+        int client_known = 0;
+        bzero(&cli_addr, sizeof(cli_addr));
+        cli_addr.sin_family = AF_INET;
+
+        printf("running server on port %d\n", local_port);
 
         /* listen and respond */
         int n = -1;
         int i = 0;
-        for (i = 0; i < 3; i++) {
+        for (i = 0; i < 4; i++) {
                 char msg[kBUFFER_MAX_LEN];
                 bzero(msg, kBUFFER_MAX_LEN);
-                //n = read(sd, msg, kBUFFER_MAX_LEN);
-                // it seems sd won't be cleared after a read()
-                n = recvfrom(sd, msg, kBUFFER_MAX_LEN, 0, NULL, NULL);
+                /**
+                 * there is a problem: the 4th and last incoming packet is
+                 * supposed to be an OOB packet
+                 * (the client sends an OOB before and after sending SYN, and 
+                 * after receiving SYNACK: OOB - SYN - OOB - (SYNACK) - OOB),
+                 * but the server finds it to be a SYN
+                 */
+                if (client_known) {
+                        socklen_t len = sizeof(cli_addr);
+                        n = recvfrom(sd, msg, kBUFFER_MAX_LEN, 0, 
+                                        (struct sockaddr*) &cli_addr, &len);
+                } else {
+                        n = read(sd, msg, kBUFFER_MAX_LEN);
+                }
                 if (n < 0) {
                         fprintf(stderr,
                                 "recvfrom() error: %s\n", strerror(errno));
                         return FAILURE;
                 }
+                printf("**** Packet %d coming in ****\n", i);
                 printf("Received %d bytes\n", n);
                 //hexdump("received_packet", (void*) msg, n);
 
@@ -113,11 +132,25 @@ main(int argc, char** argv)
                 inet_ntop(AF_INET, &(ip_hdr->ip_src), incoming_src_addr, 16);
                 inet_ntop(AF_INET, &(ip_hdr->ip_dst), incoming_dst_addr, 16);
 
-                printf("received IP packet from %s to %s\n", 
-                       incoming_src_addr, incoming_dst_addr);
-
                 struct tcphdr* tcp_hdr
                         = (struct tcphdr*) (msg + sizeof(struct ip));
+
+                printf("received TCP packet from %s:%u to %s:%u\n", 
+#if defined(THIS_IS_OS_X) || defined(THIS_IS_CYGWIN)
+                    incoming_src_addr, 
+                    ntohs(tcp_hdr->th_sport), 
+                    incoming_dst_addr,
+                    ntohs(tcp_hdr->th_dport)
+#elif defined(THIS_IS_LINUX)
+                    incoming_src_addr, 
+                    ntohs(tcp_hdr->source),
+                    incoming_dst_addr,
+                    ntohs(tcp_hdr->dest)
+#else
+  #error "Undetected OS. See include/os_detect.h"
+#endif
+                );
+ 
 
                 if (
 #if defined(THIS_IS_OS_X) || defined(THIS_IS_CYGWIN)
@@ -171,10 +204,25 @@ main(int argc, char** argv)
                                 fprintf(stderr, 
                                         "sendto() error: %s\n", strerror(errno));
                         } else {
-                                printf("\tSYNACK packet successfully sent\n");
+                                printf("\tSYNACK packet successfully sent "
+                                       "from %s:%d to %s:%d\n",
+                                       incoming_dst_addr,
+                                       local_port,
+                                       incoming_src_addr,
+                                       dst_port);
                         }
 
                         free(synack_pkt);
+
+                        /* make this client known */
+
+                        if (!client_known) {
+                                client_known = 1;
+                                cli_addr.sin_port = htons(dst_port);
+                                cli_addr.sin_addr.s_addr =
+                                        inet_addr(incoming_src_addr);
+                        }
+
 
 
                 } else if ( 
@@ -186,7 +234,7 @@ main(int argc, char** argv)
   #error "Undetected OS. See include/os_detect.h"
 #endif
                 ) {
-                        printf("received an OOB packet\n");
+                        printf("this is an OOB packet\n");
                         int payloadlen = n - kIP_HDR_LEN - kTCP_HDR_LEN;
                         printf("there should be %d payload bytes:\n",
                                payloadlen);
@@ -203,11 +251,14 @@ main(int argc, char** argv)
                         fprintf(stderr, "unrecognized TCP flag\n");
                 }
 
+                printf("**** end of packet %d ****\n", i);
+
         } // for (;;)
 
 
 
 
+        close(sd);
 
 
 

@@ -96,15 +96,6 @@ main(int argc, char** argv)
                 return FAILURE;
         }
 
-        /* bind the socket to src_port */
-        s = bind(sd, (struct sockaddr*) &src_in, sizeof(src_in));
-        if (s < 0) {
-                fprintf(stderr,
-                        "bind() error: %s\n", strerror(errno));
-                close(sd);
-                return FAILURE;
-        }
-
         
         printf("About to start experiment\n");
         printf("This program will send an OOB packet and wait for 3 sec. \n"
@@ -161,6 +152,10 @@ main(int argc, char** argv)
         }
 
         /* now OOB again */
+        memset(oob_pkt, 0, kPKT_MAX_LEN);
+        prepare_tcp_pkt(kPKT_TYPE_OOB,
+                        &oob_pkt, src_port, dst_port, src_addr, dst_addr);
+
 
         if (sendto(sd, oob_pkt, kOOB_PKT_LEN , 0, 
                    (struct sockaddr*) &dst_in, sizeof(dst_in)) < 0) {
@@ -174,10 +169,44 @@ main(int argc, char** argv)
 
         /* wait for SYNACK */
 
+        /* get another socket to play with */
+        int sd2 = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
+        if (sd2 < 0) {
+                fprintf(stderr, 
+                        "sd2 = socket() error: %s\n", strerror(errno));
+                return FAILURE;
+        }
+
+        /* set this socket to be on raw IP level */
+        s = setsockopt(sd2, IPPROTO_IP, IP_HDRINCL, &one, sizeof(one));
+        if (s < 0) {
+                fprintf(stderr, 
+                        "setsockopt() error: %s\n", strerror(errno));
+                close(sd2);
+                return FAILURE;
+        }
+ 
+        /* bind the socket to src_port
+         * NOTE if I don't bind() here, use read() below should work, too
+         */
+        s = bind(sd2, (struct sockaddr*) &src_in, sizeof(src_in));
+        if (s < 0) {
+                fprintf(stderr,
+                        "bind() error: %s\n", strerror(errno));
+                close(sd);
+                return FAILURE;
+        }
+
+        /* receive SYNACK */
         int n = -1;
         char msg[kBUFFER_MAX_LEN];
         bzero(msg, kBUFFER_MAX_LEN);
-        n = recvfrom(sd, msg, kBUFFER_MAX_LEN, 0, NULL, NULL);
+        socklen_t len = sizeof(dst_in);
+        /* NOTE if I use sd instead of sd2 here, I will get the OOB packet that
+         * I sent earlier. I don't know why.
+         */
+        n = recvfrom(sd2, msg, kBUFFER_MAX_LEN, 0, 
+                        (struct sockaddr*) &dst_in, &len);
         if (n < 0) {
                 fprintf(stderr,
                         "recvfrom() error: %s\n", strerror(errno));
@@ -231,12 +260,26 @@ main(int argc, char** argv)
         inet_ntop(AF_INET, &(ip_hdr->ip_src), incoming_src_addr, 16);
         inet_ntop(AF_INET, &(ip_hdr->ip_dst), incoming_dst_addr, 16);
 
-        printf("received IP packet from %s to %s\n", 
-               incoming_src_addr, incoming_dst_addr);
-
         /* check for SYNACK flags */
         struct tcphdr* tcp_hdr
                 = (struct tcphdr*) (msg + sizeof(struct ip));
+
+        printf("received TCP packet from %s:%u to %s:%u\n", 
+#if defined(THIS_IS_OS_X) || defined(THIS_IS_CYGWIN)
+            incoming_src_addr, 
+            ntohs(tcp_hdr->th_sport), 
+            incoming_dst_addr,
+            ntohs(tcp_hdr->th_dport)
+#elif defined(THIS_IS_LINUX)
+            incoming_src_addr, 
+            ntohs(tcp_hdr->source),
+            incoming_dst_addr,
+            ntohs(tcp_hdr->dest)
+#else
+  #error "Undetected OS. See include/os_detect.h"
+#endif
+        );
+                    
 
 
         if (
@@ -248,9 +291,14 @@ main(int argc, char** argv)
   #error "Undetected OS. See include/os_detect.h"
 #endif
            ) {
-                printf("received a SYN-ACK packet. Send OOB again.\n");
+                printf("this is a SYN-ACK packet. Send OOB again.\n");
                 sleep(1);
-                printf("sending post-SYN-ACK OOB\n");
+
+                memset(oob_pkt, 0, kPKT_MAX_LEN);
+                prepare_tcp_pkt(kPKT_TYPE_OOB,
+                        &oob_pkt, src_port, dst_port, src_addr, dst_addr);
+
+
                 if (sendto(sd, oob_pkt, kOOB_PKT_LEN , 0, 
                            (struct sockaddr*) &dst_in, sizeof(dst_in)) < 0) {
                         fprintf(stderr, "sendto() error: %s\n", strerror(errno));
@@ -264,11 +312,13 @@ main(int argc, char** argv)
                 fprintf(stderr, "unrecognized TCP flag\n");
                 free(oob_pkt);
                 close(sd);
+                close(sd2);
                 return FAILURE;
         }
 
 
         free(oob_pkt);
         close(sd);
+        close(sd2);
         return 0;
 }
