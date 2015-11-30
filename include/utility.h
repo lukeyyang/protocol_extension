@@ -32,6 +32,11 @@ parse_args(int argc,
            char* const dest_addr,
            int* const dest_port);
 
+void 
+parse_args_simple(int argc, 
+                  char* const argv[],
+                  int* const local_port);
+
 uint16_t 
 internet_checksum(uint16_t* buf, int nbytes);
 

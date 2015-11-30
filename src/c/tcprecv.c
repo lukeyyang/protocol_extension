@@ -11,40 +11,17 @@
 #include <errno.h>
 
 #include "os_detect.h"
+#include "utility.h"
 #include "constant.h"
 
 #define FAILURE -1
-
-extern char* optarg;
 
 int 
 main(int argc, char** argv)
 {
         /* command line argument: port number to listen to */
         int dst_port = kLISTEN_PORT_DEFAULT;
-        int ch = -1;
-        int num = 0;
-        while ((ch = getopt(argc, argv, "p:")) != -1) {
-                switch (ch) {
-                case 'p':
-                        num = (int) strtol(optarg, NULL, 10);
-                        if ((!num) && (errno == EINVAL || errno == ERANGE)) {
-                                fprintf(stderr,
-                                        "Invalid port number to listen to, "
-                                        "reset to default 64001\n");
-                        } else {
-                                dst_port = num;
-                        }
-                        break;
-                case '?':
-                default:
-                        fprintf(stderr, 
-                                "usage: %s [-p port_number_to_listen_to]\n",
-                                argv[0]);
-                        exit(-1);
-                        break;
-                }
-        }
+        parse_args_simple(argc, argv, &dst_port);
         printf("Listening to localhost port: %d\n", dst_port);
 
 

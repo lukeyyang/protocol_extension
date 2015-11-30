@@ -15,10 +15,9 @@
 
 #include "os_detect.h"
 #include "utility.h"
+#include "constant.h"
 
 #define FAILURE -1
-
-extern char* optarg;
 
 /* usage: twhs_server [-p port] */
 int 
@@ -26,34 +25,10 @@ main(int argc, char** argv)
 {
         /* command line argument: port number to listen to */
         int local_port = kLISTEN_PORT_DEFAULT;
-        int ch = -1;
-        int num = 0;
-        while ((ch = getopt(argc, argv, "p:")) != -1) {
-                switch (ch) {
-                case 'p':
-                        num = (int) strtol(optarg, NULL, 10);
-                        if ((!num) && (errno == EINVAL || errno == ERANGE)) {
-                                fprintf(stderr,
-                                        "Invalid port number to listen to, "
-                                        "reset to default 64001\n");
-                        } else {
-                                local_port = num;
-                        }
-                        break;
-                case '?':
-                default:
-                        fprintf(stderr, 
-                                "usage: %s [-p port_number_to_listen_to]\n",
-                                argv[0]);
-                        exit(-1);
-                        break;
-                }
-        }
+        parse_args_simple(argc, argv, &local_port);
 
-        int sd, n;
-        struct sockaddr_in servaddr;
-
-        sd = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
+        /* get a socket to play with */
+        int sd = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
         if (sd < 0) {
                 fprintf(stderr, 
                         "socket() error: %s\n", strerror(errno));
@@ -62,6 +37,8 @@ main(int argc, char** argv)
 
         int s = 1;
         int one = 1;
+
+        /* set the socket to be on raw IP level */
         s = setsockopt(sd, IPPROTO_IP, IP_HDRINCL, &one, sizeof(one));
         if (s < 0) {
                 fprintf(stderr,
@@ -69,11 +46,13 @@ main(int argc, char** argv)
                 return FAILURE;
         }
 
-
+        /* bind the socket to local_port */
+        struct sockaddr_in servaddr;
         bzero(&servaddr, sizeof(servaddr));
         servaddr.sin_family = AF_INET;
         servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
         servaddr.sin_port = htons((unsigned short) local_port);
+
         s = bind(sd, (struct sockaddr*) &servaddr, sizeof(servaddr));
         if (s < 0) {
                 fprintf(stderr,
@@ -81,35 +60,32 @@ main(int argc, char** argv)
                 return FAILURE;
         }
 
-        printf("Listening to localhost port: %d\n", local_port);
+        printf("Using port: %d\n", local_port);
 
-        for (;;) {
+        /* listen and respond */
+        int n = -1;
+        int i = 0;
+        for (i = 0; i < 3; i++) {
                 char msg[kBUFFER_MAX_LEN];
                 bzero(msg, kBUFFER_MAX_LEN);
-                n = read(sd, msg, kBUFFER_MAX_LEN);
+                //n = read(sd, msg, kBUFFER_MAX_LEN);
+                // it seems sd won't be cleared after a read()
+                n = recvfrom(sd, msg, kBUFFER_MAX_LEN, 0, NULL, NULL);
                 if (n < 0) {
                         fprintf(stderr,
-                                "read() error: %s\n", strerror(errno));
+                                "recvfrom() error: %s\n", strerror(errno));
                         return FAILURE;
                 }
                 printf("Received %d bytes\n", n);
                 //hexdump("received_packet", (void*) msg, n);
 
-                if (n < kIP_HDR_LEN) {
+                /* integrity check */
+                if (n < kIP_HDR_LEN + kTCP_HDR_LEN) {
                         fprintf(stderr,
-                                "fatal: received incomplete IP header\n");
-                        return FAILURE;
-                } else if (n < kIP_HDR_LEN + kTCP_HDR_LEN) {
-                        fprintf(stderr,
-                                "fatal: received incomplete IP and/or "
-                                "TCP headers\n");
+                                "fatal: header length incomplete\n");
                         return FAILURE;
                 }
                 
-                /* it turns out we get the whole ethernet frame * */
-
-
-                /* check it's TCP first */
                 struct ip* ip_hdr = (struct ip*) msg;
                 if ((ip_hdr->ip_hl != 5) || (ip_hdr->ip_v != 4)) {
                         fprintf(stderr,

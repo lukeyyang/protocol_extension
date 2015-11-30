@@ -7,6 +7,7 @@
 extern const size_t kIP_HDR_LEN;
 extern const size_t kTCP_HDR_LEN;
 extern const size_t kUDP_HDR_LEN;
+extern const size_t kIPADDR_MAXLEN;
 
 /* Program behavior related */
 extern const size_t kPKT_MAX_LEN;
@@ -20,5 +21,7 @@ extern const int    kLISTEN_PORT_DEFAULT;
 
 extern const char*  kIP_LOCALHOST;
 extern const char*  kPAYLOAD;
+extern const char*  kPARSE_USAGE;
+extern const char*  kPARSE_USAGE_SIMPLE;
 
-#endif
+#endif  /* CONSTANT_H_ */
