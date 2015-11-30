@@ -7,18 +7,11 @@
 #include <inttypes.h>
 #include <errno.h>
 
-
 extern char* optarg;
-extern int optind;
-extern int optopt;
-extern int opterr;
-extern int optreset;
-
 
 #include "os_detect.h"
+#include "constant.h"
 
-const static size_t kBUFFER_MAX_LEN = 1024;
-const static int kLISTEN_PORT_DEFAULT = 64001;
 
 int 
 main(int argc, char** argv)

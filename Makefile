@@ -10,6 +10,7 @@ DST_DIR = ./bin/$(MACHINE)/$(KERNEL)
 TARGETS = $(DST_DIR)/rawtcp $(DST_DIR)/rawudp \
           $(DST_DIR)/udprecv $(DST_DIR)/tcprecv \
           $(DST_DIR)/twhs_client $(DST_DIR)/twhs_server
+LIBOBJS = $(BUILD_DIR)/utility.o  $(BUILD_DIR)/constant.o
 
 MKDIR_P = mkdir -p
 DIRECTORIES = $(DST_DIR) $(BUILD_DIR)
@@ -27,22 +28,22 @@ twhs_server: $(DIRECTORIES) $(DST_DIR)/twhs_server
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.$(SRC_EXT)
 	$(CC) $< -o $@ $(CFLAGS) -c $(INC) 
 
-$(DST_DIR)/rawtcp: $(BUILD_DIR)/utility.o $(BUILD_DIR)/rawtcp.o 
+$(DST_DIR)/rawtcp: $(LIBOBJS) $(BUILD_DIR)/rawtcp.o 
 	$(CC) $^ -o $@
 
-$(DST_DIR)/rawudp: $(BUILD_DIR)/utility.o $(BUILD_DIR)/rawudp.o
+$(DST_DIR)/rawudp: $(LIBOBJS) $(BUILD_DIR)/rawudp.o
 	$(CC) $^ -o $@
 
-$(DST_DIR)/udprecv: $(BUILD_DIR)/udprecv.o
+$(DST_DIR)/udprecv: $(LIBOBJS) $(BUILD_DIR)/udprecv.o
 	$(CC) $^ -o $@
 
-$(DST_DIR)/tcprecv: $(BUILD_DIR)/tcprecv.o
+$(DST_DIR)/tcprecv: $(LIBOBJS) $(BUILD_DIR)/tcprecv.o
 	$(CC) $^ -o $@
 
-$(DST_DIR)/twhs_client: $(BUILD_DIR)/utility.o $(BUILD_DIR)/twhs_client.o
+$(DST_DIR)/twhs_client: $(LIBOBJS) $(BUILD_DIR)/twhs_client.o
 	$(CC) $^ -o $@
 
-$(DST_DIR)/twhs_server: $(BUILD_DIR)/utility.o $(BUILD_DIR)/twhs_server.o
+$(DST_DIR)/twhs_server: $(LIBOBJS) $(BUILD_DIR)/twhs_server.o
 	$(CC) $^ -o $@
 
 runtcp: $(DST_DIR)/rawtcp

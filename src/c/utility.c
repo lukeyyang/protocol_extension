@@ -11,16 +11,12 @@
 
 #include "os_detect.h"
 #include "utility.h"
+#include "constant.h"
 
 #define kUSAGE "usage: %s [-h source_addr]"\
                          "[-f source_port]"\
                          "[-d dest_addr]"\
                          "[-p dest_port]\n"
-
-const static size_t kPKT_MAX_LEN = 1024;
-const static size_t kIP_HDR_LEN = 20;
-const static size_t kTCP_HDR_LEN = 20;
-const static char* kOOB_PAYLOAD = "Hello";
 
 /* prepare an TCP/IP packet: OOB w/ payload, SYN, SYNACK, ACK */
 void
@@ -59,7 +55,7 @@ prepare_tcp_pkt(const int pkt_type,
 
         /* total length includes payload length for OOB packet */
         const size_t kTOTAL_LEN = kIP_HDR_LEN + kTCP_HDR_LEN
-                                + ((pkt_is_oob) ? strlen(kOOB_PAYLOAD) : 0);
+                                + ((pkt_is_oob) ? strlen(kPAYLOAD) : 0);
         
         char* pkt = *pkt_p;
 
@@ -153,7 +149,7 @@ prepare_tcp_pkt(const int pkt_type,
         /* stuff in some data for the OOB packet */
         if (pkt_is_oob) {
                 char* payload = pkt + sizeof(struct ip) + sizeof(struct tcphdr);
-                memcpy(payload, kOOB_PAYLOAD, strlen(kOOB_PAYLOAD));
+                memcpy(payload, kPAYLOAD, strlen(kPAYLOAD));
         }
 
 }

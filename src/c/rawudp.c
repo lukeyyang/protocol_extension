@@ -14,17 +14,9 @@
 
 #include "os_detect.h"
 #include "utility.h"
+#include "constant.h"
 
 #define FAILURE -1
-const static size_t kPKT_MAX_LEN = 1024;
-const static size_t kTRAILER_OFFSET = 4;
-const static size_t kOPTIONS_LENGTH = 12;
-const static size_t kIP_HDR_LEN = 20;
-const static size_t kUDP_HDR_LEN = 8;
-const static int kSRC_PORT_DEFAULT = 64000;
-const static int kDST_PORT_DEFAULT = 64001;
-const static char* kIP_LOCALHOST = "127.0.0.1";
-
 
 int
 main(int argc, char** argv)

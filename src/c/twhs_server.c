@@ -20,12 +20,6 @@
 
 extern char* optarg;
 
-const static size_t kIP_HDR_LEN = 20;
-const static size_t kTCP_HDR_LEN = 20;
-const static size_t kBUFFER_MAX_LEN = 256;
-const static size_t kPKT_MAX_LEN = 256;
-const static int kLISTEN_PORT_DEFAULT = 64001;
-
 /* usage: twhs_server [-p port] */
 int 
 main(int argc, char** argv)
