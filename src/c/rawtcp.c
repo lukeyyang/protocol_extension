@@ -54,38 +54,22 @@ main(int argc, char** argv)
         printf("src: %s: %d\n", src_addr, src_port);
         printf("dst: %s: %d\n", dst_addr, dst_port);
 
-
-        /* prepare packet */
-
-        const size_t kTOTAL_LEN = kIP_HDR_LEN + kTCP_HDR_LEN
-                                + strlen(kPAYLOAD); /* now with data */
-
-        char pkt[kPKT_MAX_LEN];
-        memset(pkt, 0, kPKT_MAX_LEN);
-
-        struct ip* ip_hdr = (struct ip*) pkt;
-        struct tcphdr* tcp_hdr = (struct tcphdr*) (pkt + sizeof(struct ip));
-
-        assert(sizeof(struct ip) == kIP_HDR_LEN);
-        assert(sizeof(struct tcphdr) == kTCP_HDR_LEN);
-
-        struct sockaddr_in src_in, dst_in; 
-
-       
         /* SET UP TWO SOCKETS */
-        int sd = socket(PF_INET, SOCK_RAW, IPPROTO_TCP);
+        int sd = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
         if (sd < 0) {
                 fprintf(stderr, 
                         "sd = socket() error: %s\n", strerror(errno));
                 return FAILURE;
         }
-        int sd_normal = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+        int sd_normal = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         if (sd_normal < 0) {
                 fprintf(stderr, 
                         "sd_normal = socket() error: %s\n", strerror(errno));
                 return FAILURE;
         }
 
+
+        /* sd for raw tcp, sd_normal for normal tcp */
 
         int s = 1;
         int one = 1;
@@ -101,6 +85,10 @@ main(int argc, char** argv)
                 fprintf(stderr, "setsockopt() error: %s\n", strerror(errno));
                 return FAILURE;
         }
+
+        /* address data structure */
+
+        struct sockaddr_in src_in, dst_in; 
 
         src_in.sin_family = AF_INET;
         dst_in.sin_family = AF_INET;
@@ -119,83 +107,17 @@ main(int argc, char** argv)
                 return FAILURE;
         }
 
+        /* prepare packet */
 
-        /* FILL OUT IP HEADER */
+        char* oob_pkt = malloc(kPKT_MAX_LEN);
+        memset(oob_pkt, 0, kPKT_MAX_LEN);
 
-        ip_hdr->ip_hl = 5;  /* Internet Header Length */
-        ip_hdr->ip_v  = 4;  /* Version */
-        ip_hdr->ip_tos = 0; /* Type of service */
-        ip_hdr->ip_id = htons(0);  /* identification: unused */
-        ip_hdr->ip_len = kTOTAL_LEN; /* Length */ 
+        prepare_tcp_pkt(kPKT_TYPE_OOB,
+                        &oob_pkt, src_port, dst_port, src_addr, dst_addr);
 
-        char ip_flags[4];
-        memset(ip_flags, 0, 4);
+        const size_t kOOB_PKT_LEN = kIP_HDR_LEN + kTCP_HDR_LEN
+                                 + strlen(kPAYLOAD); /* now with data */
 
-        ip_hdr->ip_off = htons((ip_flags[0] << 15)
-                             + (ip_flags[1] << 14)
-                             + (ip_flags[2] << 13)
-                             +  ip_flags[3]);
-        ip_hdr->ip_ttl = 255;
-
-        ip_hdr->ip_p = IPPROTO_TCP;
-
-        s = inet_pton(AF_INET, src_addr, &(ip_hdr->ip_src));
-        if (s != 1) {
-                fprintf(stderr, "inet_pton() error: %s\n", strerror(errno));
-                return FAILURE;
-        }
-        s = inet_pton(AF_INET, dst_addr, &(ip_hdr->ip_dst));
-        if (s != 1) {
-                fprintf(stderr, "inet_pton() error: %s\n", strerror(errno));
-                return FAILURE;
-        }
-
-        ip_hdr->ip_sum = 0;
-        /* internet_checksum(
-               (uint16_t*) pkt, kIP_HDR_LEN + kTCP_HDR_LEN); */
-
-        
-        /* FILL OUT TCP HEADER */
-        /* cygwin uses BSD flavor header */
-#if defined(THIS_IS_OS_X) || defined(THIS_IS_CYGWIN)
-        tcp_hdr->th_sport = htons(src_port);  /* TCP source port */
-        tcp_hdr->th_dport = htons(dst_port);  /* TCP dest port */
-        tcp_hdr->th_seq   = htonl(0);         /* Sequence number */
-        tcp_hdr->th_ack   = htonl(0);         /* Acknowledgement number */
-        tcp_hdr->th_x2    = 0;                /* unused */
-        tcp_hdr->th_off   = kTCP_HDR_LEN / 4; /* Data offset in 32-bit words */
-        tcp_hdr->th_flags = 0; /*TH_SYN;*/    /* Flags */
-        /**
-         * TH_CWR|TH_ECE|TH_URG|TH_ACK|TH_PSH|TH_RST|TH_SYN|TH_FIN
-         *   0      0      0      0      0      0      0      0
-         */
-        tcp_hdr->th_win   = htons(65535);     /* Window */
-        tcp_hdr->th_urp   = htons(0);         /* Urgent pointer */
-        tcp_hdr->th_sum   = 0; /* htons(tcp_checksum(ip_hdr, tcp_hdr)); */
-#elif defined(THIS_IS_LINUX)
-        tcp_hdr->source  = htons(src_port);   /* TCP source port */
-        tcp_hdr->dest    = htons(dst_port);   /* TCP dest port */
-        tcp_hdr->seq     = htonl(0);          /* Sequence number */
-        tcp_hdr->ack_seq = htonl(0);          /* Acknowledgement number */
-        tcp_hdr->res1    = 0;                 /* unused */
-        tcp_hdr->doff    = kTCP_HDR_LEN / 4;  /* Data offset in 32-bit words */
-        tcp_hdr->fin     = 0;
-        tcp_hdr->syn     = 0; /*1;*/          /* SYN */
-        tcp_hdr->rst     = 0;
-        tcp_hdr->psh     = 0;
-        tcp_hdr->ack     = 0;
-        tcp_hdr->urg     = 0;
-        tcp_hdr->res2    = 0;
-        tcp_hdr->window  = htons(65535);       /* Window */
-        tcp_hdr->urg_ptr = htons(0);           /* Urgent pointer */
-        tcp_hdr->check   = 0; /* htons(tcp_checksum(ip_hdr, tcp_hdr)); */
-#else
-  #error "Undetected OS. See include/os_detect.h"
-#endif
-
-        /* stuff in some data */
-        char* payload = pkt + sizeof(struct ip) + sizeof(struct tcphdr);
-        memcpy(payload, kPAYLOAD, strlen(kPAYLOAD));
 
         
         printf("About to send\n");
@@ -208,9 +130,10 @@ main(int argc, char** argv)
 
         int i;
         for (i = 0; i < 3; i++) {
-                if (sendto(sd, pkt, kTOTAL_LEN, 0, 
+                if (sendto(sd, oob_pkt, kOOB_PKT_LEN, 0, 
                     (struct sockaddr*) &dst_in, sizeof(dst_in)) < 0) {
                         fprintf(stderr, "sendto() error: %s\n", strerror(errno));
+                        free(oob_pkt);
                         close(sd);
                         return FAILURE;
                 } else {
@@ -250,9 +173,10 @@ main(int argc, char** argv)
         /* second attempt to send the special packet */
 
         for (i = 0; i < 3; i++) {
-                if (sendto(sd, pkt, kTOTAL_LEN, 0, 
+                if (sendto(sd, oob_pkt, kOOB_PKT_LEN, 0, 
                     (struct sockaddr*) &dst_in, sizeof(dst_in)) < 0) {
                         fprintf(stderr, "sendto() error: %s\n", strerror(errno));
+                        free(oob_pkt);
                         close(sd);
                         return FAILURE;
                 } else {
@@ -262,6 +186,7 @@ main(int argc, char** argv)
                 }
         }
 
+        free(oob_pkt);
         close(sd_normal);
         close(sd);
         return 0;
