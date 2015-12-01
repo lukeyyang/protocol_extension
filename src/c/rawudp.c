@@ -1,3 +1,13 @@
+/**
+ * rawudp.c
+ * client code for the experiment of UDP options extension
+ * usage: rawudp [-h src_addr] [-f src_port] [-d dst_addr] [-p dst_port]
+ * requires root privilege
+ *
+ * creates our OOB UDP packet and sends it through a raw UDP socket 3 times
+ * works in pair with udprecv
+ */
+
 #include <netinet/udp.h>
 #include <netinet/ip.h>
 #include <netinet/in.h>
@@ -151,7 +161,9 @@ main(int argc, char** argv)
         for (i = 0; i < 3; i++) {
                 if (sendto(sd, pkt, kTOTAL_PKT_LEN, 0, 
                     (struct sockaddr*)&dst_in, sizeof(dst_in)) < 0) {
-                        fprintf(stderr, "sendto() error: %s\n", strerror(errno));
+                        fprintf(stderr, 
+                                "sendto() error: %s\n", strerror(errno));
+                        close(sd);
                         return FAILURE;
                 } else {
                         printf("%d - sendto() OK.\n", i);

@@ -1,3 +1,8 @@
+/**
+ * os_detect.h
+ * macro logic for OS detection and cross-platform compatibility
+ */
+
 #ifndef OS_DETECT_H
 #define OS_DETECT_H
 

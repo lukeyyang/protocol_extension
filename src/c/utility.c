@@ -1,3 +1,8 @@
+/**
+ * utility.c
+ * implementation of functions defined in include/utility.h
+ */
+
 #include <stdio.h>
 #include <errno.h>
 #include <inttypes.h>

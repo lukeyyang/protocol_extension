@@ -1,3 +1,12 @@
+/**
+ * udprecv.c
+ * server code for the experiment of UDP options extension
+ * usage: udprecv [-p portno]
+ *
+ * prints out UDP payload bytes
+ * works in pair with rawudp
+ */
+
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <stdio.h>

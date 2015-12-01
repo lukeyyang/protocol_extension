@@ -1,3 +1,7 @@
+/**
+ * constant.c
+ * values of the constants defined in include/constant.h
+ */
 #include <stddef.h>
 #include "constant.h"
 

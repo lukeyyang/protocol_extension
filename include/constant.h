@@ -1,3 +1,8 @@
+/**
+ * constant.h
+ * various constant definitions used in the project
+ */
+
 #ifndef CONSTANT_H_
 #define CONSTANT_H_
 

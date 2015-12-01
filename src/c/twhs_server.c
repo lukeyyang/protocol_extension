@@ -1,3 +1,17 @@
+/**
+ * twhs_server.c
+ * server code for receiving TCP OOB packet before and during a TCP connection
+ * usage: twhs_server [-p portno]
+ * requires root privilege
+ *
+ * uses raw IP sockets
+ * prints out TCP payload if an OOB packet is received
+ * rests for 5 seconds after receiving a SYN, then responds with SYNACK
+ * in the current experiment, this server receives this sequence of packets:
+ *   OOB    SYN    OOB    OOB
+ * works in pair with twhs_client
+ */
+
 #include <netinet/ip.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
@@ -202,7 +216,8 @@ main(int argc, char** argv)
                                    (struct sockaddr*) &dst_in, sizeof(dst_in)) 
                             < 0) {
                                 fprintf(stderr, 
-                                        "sendto() error: %s\n", strerror(errno));
+                                        "sendto() error: %s\n", 
+                                        strerror(errno));
                         } else {
                                 printf("\tSYNACK packet successfully sent "
                                        "from %s:%d to %s:%d\n",

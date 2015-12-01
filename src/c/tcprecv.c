@@ -1,3 +1,12 @@
+/**
+ * tcprecv.c
+ * server code for sending a TCP OOB packet before and after a TCP connection
+ * usage: tcprecv [-p portno]
+ *
+ * prints out TCP payload if there's any
+ * works in pair with rawtcp 
+ */
+
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <stdio.h>
@@ -96,7 +105,7 @@ main(int argc, char** argv)
                 hostaddrp = inet_ntoa(cliaddr.sin_addr);
                 if (hostaddrp == NULL) {
                         fprintf(stderr,
-                                "inet_ntoa() errorL %s\n", strerror(errno));
+                                "inet_ntoa() error: %s\n", strerror(errno));
                         return FAILURE;
                 }
                 printf("established connection with %s\n",

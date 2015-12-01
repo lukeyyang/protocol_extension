@@ -1,3 +1,14 @@
+/**
+ * rawtcp.c
+ * client code for sending a TCP OOB packet before and after a TCP connection
+ * usage: rawtcp [-h src_addr] [-f src_port] [-d dst_addr] [-p dst_port]
+ * requires root privilege
+ *
+ * sends TCP OOB packet using raw TCP sockets
+ * establishes TCP connection using a separate TCP socket
+ * works in pair with tcprecv
+ */
+
 #include <netinet/tcp.h>
 #include <netinet/ip.h>
 #include <netinet/in.h>
@@ -30,7 +41,6 @@ void print_info()
                "  three minutes\n");
 }
 
-/* usage: rawtcp [-h src_addr] [-f src_port] [-d dst_addr] [-p dst_port] */
 int
 main(int argc, char** argv)
 {

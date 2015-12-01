@@ -1,3 +1,17 @@
+/**
+ * twhs_client.c
+ * client code for sending TCP OOB packet before and during a TCP connection
+ * usage: twhs_client [-h src_addr] [-f src_port] [-d dst_addr] [-p dst_port]
+ * requires root privilege
+ *
+ * currently uses two raw IP sockets, one for sending and one for receiving
+ * first sends an OOB packets, then sleeps for 3 seconds
+ * sends SYN, then sleeps for 1 second
+ * sends a second OOB packet, then starts waiting for SYNACK (5 seconds later)
+ * sends a final OOB packet after the SYNACK arrives
+ * works in pair with twhs_server
+ */
+
 #include <netinet/tcp.h>
 #include <netinet/ip.h>
 #include <netinet/in.h>
@@ -32,7 +46,6 @@ print_info()
 }
 
 
-/* usage: twhs_client [-h src_addr] [-f src_port] [-d dst_addr] [-p dst_port] */
 int
 main(int argc, char** argv)
 {
@@ -135,7 +148,7 @@ main(int argc, char** argv)
         }
 
 
-        /* SYN first */
+        /* SYN */
 
         if (sendto(sd, syn_pkt, kSYN_PKT_LEN, 0, 
                    (struct sockaddr*) &dst_in, sizeof(dst_in)) < 0) {
