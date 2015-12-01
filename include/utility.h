@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
+#include <stdarg.h>
 
 #define kPKT_TYPE_OOB    0
 #define kPKT_TYPE_SYN    1
@@ -43,7 +44,8 @@ parse_args(int argc,
            char* const source_addr,
            int* const source_port,
            char* const dest_addr,
-           int* const dest_port);
+           int* const dest_port,
+           int* const verbose);
 
 /**
  * parses command line arguments with one argument (port), used in server 
@@ -51,7 +53,8 @@ parse_args(int argc,
 void 
 parse_args_simple(int argc, 
                   char* const argv[],
-                  int* const local_port);
+                  int* const local_port,
+                  int* const verbose);
 
 /**
  * Internet checksum per RFC 1071 -- not really used
@@ -70,6 +73,5 @@ tcp_checksum(struct ip* ip_hdr, struct tcphdr* tcphdr);
  */
 void
 hexdump(const char* const desc, const void* const addr, int len);
-
 
 #endif /* UTILITY_H */

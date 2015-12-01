@@ -1,7 +1,7 @@
 /**
  * udprecv.c
  * server code for the experiment of UDP options extension
- * usage: udprecv [-p portno]
+ * usage: udprecv [-p portno] [-v]
  *
  * prints out UDP payload bytes
  * works in pair with rawudp
@@ -20,6 +20,7 @@
 #include "os_detect.h"
 #include "utility.h"
 #include "constant.h"
+#include "debug.h"
 
 
 int 
@@ -27,7 +28,7 @@ main(int argc, char** argv)
 {
         /* command line argument: port number to listen to */
         int dst_port = kLISTEN_PORT_DEFAULT;
-        parse_args_simple(argc, argv, &dst_port);
+        parse_args_simple(argc, argv, &dst_port, &verbose);
         printf("Listening to localhost port: %d\n", dst_port);
 
 

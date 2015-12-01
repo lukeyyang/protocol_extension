@@ -18,6 +18,7 @@
 #include "os_detect.h"
 #include "utility.h"
 #include "constant.h"
+#include "debug.h"
 
 /* prepare an TCP/IP packet: OOB w/ payload, SYN, SYNACK, ACK */
 void
@@ -46,9 +47,7 @@ prepare_tcp_pkt(const int pkt_type,
                 pkt_is_ack = 1;
                 break;
         default:
-                fprintf(stderr, 
-                        "prepare_tcp_pkt() error: "
-                        "unrecognized target packet type!\n");
+                LOGX("unrecognized target packet type");
                 return;
                 break; /* never gets there */
         }
@@ -89,12 +88,12 @@ prepare_tcp_pkt(const int pkt_type,
         int s = 1;
         s = inet_pton(AF_INET, src_addr, &(ip_hdr->ip_src));
         if (s != 1) {
-                fprintf(stderr, "inet_pton() error: %s\n", strerror(errno));
+                LOGX("inet_pton()");
                 return;
         }
         s = inet_pton(AF_INET, dst_addr, &(ip_hdr->ip_dst));
         if (s != 1) {
-                fprintf(stderr, "inet_pton() error: %s\n", strerror(errno));
+                LOGX("inet_pton()");
                 return;
         }
 
@@ -169,11 +168,12 @@ parse_args(int argc,
            char* const source_addr,
            int* const source_port,
            char* const dest_addr,
-           int* const dest_port)
+           int* const dest_port,
+           int* const verbose)
 {
         int ch = -1;
         int num = 0;
-        while ((ch = getopt(argc, argv, "h:f:d:p:")) != -1) {
+        while ((ch = getopt(argc, argv, "h:f:d:p:v")) != -1) {
                 switch (ch) {
                 case 'h':
                         strncpy(source_addr, optarg, kIPADDR_MAXLEN);
@@ -181,9 +181,7 @@ parse_args(int argc,
                 case 'f':
                         num = (int) strtol(optarg, NULL, 10);
                         if ((!num) && (errno == EINVAL || errno == ERANGE)) {
-                                fprintf(stderr,
-                                        "Invalid source port number, "
-                                        "keeping default value 64000\n");
+                                LOGW("Invalid port number; default to 64001");
                         } else {
                                 *source_port = num;
                         }
@@ -194,16 +192,17 @@ parse_args(int argc,
                 case 'p':
                         num = (int) strtol(optarg, NULL, 10);
                         if ((!num) && (errno == EINVAL || errno == ERANGE)) {
-                                fprintf(stderr,
-                                        "Invalid destination port number, "
-                                        "keeping default value 64001\n");
+                                LOGW("Invalid port number; default to 64001");
                         } else {
                                 *dest_port = num;
                         }
                         break;
+                case 'v':
+                        *verbose = 1;
+                        break;
                 case '?':
                 default:
-                        fprintf(stderr, kPARSE_USAGE, argv[0]);
+                        LOGX(kUSAGE, argv[0]);
                         exit(-1);
                         break;
                 }
@@ -214,26 +213,28 @@ parse_args(int argc,
 void 
 parse_args_simple(int argc,
                   char* const argv[],
-                  int* const local_port)
+                  int* const local_port,
+                  int* const verbose)
 {
         int ch = -1;
         int num = 0;
 
-        while ((ch = getopt(argc, argv, "p:")) != -1) {
+        while ((ch = getopt(argc, argv, "p:v")) != -1) {
                 switch (ch) {
                 case 'p':
                         num = (int) strtol(optarg, NULL, 10);
                         if ((!num) && (errno == EINVAL || errno == ERANGE)) {
-                                fprintf(stderr,
-                                        "Invalid port number to listen to, "
-                                        "keeping default value 64001\n");
+                                LOGW("Invalid port number; default to 64001");
                         } else {
                                 *local_port = num;
                         }
                         break;
+                case 'v':
+                        *verbose = 1;
+                        break;
                 case '?':
                 default:
-                        fprintf(stderr, kPARSE_USAGE_SIMPLE, argv[0]);
+                        LOGX(kUSAGE_SIMPLE, argv[0]);
                         exit(-1);
                         break;
                 }

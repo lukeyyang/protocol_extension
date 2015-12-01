@@ -1,7 +1,8 @@
 /**
  * rawtcp.c
  * client code for sending a TCP OOB packet before and after a TCP connection
- * usage: rawtcp [-h src_addr] [-f src_port] [-d dst_addr] [-p dst_port]
+ * usage: 
+ *   rawtcp [-h src_addr] [-f src_port] [-d dst_addr] [-p dst_port] [-v]
  * requires root privilege
  *
  * sends TCP OOB packet using raw TCP sockets
@@ -26,14 +27,15 @@
 #include "os_detect.h"
 #include "utility.h"
 #include "constant.h"
+#include "debug.h"
 
 #define FAILURE -1
 
 
 void print_info()
 {
-        printf("ARGS: [-h src_addr] [-f src_port] "
-               "[-d dst_addr] [-p dst_port]\n"
+        LOGV("ARGS: [-h src_addr] [-f src_port] "
+               "[-d dst_addr] [-p dst_port] [-v]\n"
                "*IMPORTANT*: source address (-h) is by default 127.0.0.1;\n"
                "  unless you are receiving from localhost, you SHOULD change\n"
                "  it to your real IP address\n"
@@ -44,9 +46,6 @@ void print_info()
 int
 main(int argc, char** argv)
 {
-        /* Print out some useful information */
-        print_info();
-
         /* COMMAND LINE PARSING */
 
         int src_port = kSRC_PORT_DEFAULT;
@@ -59,7 +58,13 @@ main(int argc, char** argv)
         strncpy(src_addr, kIP_LOCALHOST, 16);
         strncpy(dst_addr, kIP_LOCALHOST, 16);
 
-        parse_args(argc, argv, src_addr, &src_port, dst_addr, &dst_port);
+        parse_args(argc, argv, 
+                        src_addr, &src_port, dst_addr, &dst_port,
+                        &verbose);
+
+        /* Print out some useful information */
+        print_info();
+
 
         printf("src: %s: %d\n", src_addr, src_port);
         printf("dst: %s: %d\n", dst_addr, dst_port);

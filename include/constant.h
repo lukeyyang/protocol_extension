@@ -8,6 +8,13 @@
 
 #include <stddef.h>
 
+#define kUSAGE "usage: %s [-h source_addr]"\
+                         "[-f source_port]"\
+                         "[-d dest_addr]"\
+                         "[-p dest_port]"\
+                         "[-v]"
+#define kUSAGE_SIMPLE "usage: %s [-p port_number_to_listen_to] [-v]"
+
 /* Protocol header related */
 extern const size_t kIP_HDR_LEN;
 extern const size_t kTCP_HDR_LEN;
@@ -26,7 +33,7 @@ extern const int    kLISTEN_PORT_DEFAULT;
 
 extern const char*  kIP_LOCALHOST;
 extern const char*  kPAYLOAD;
-extern const char*  kPARSE_USAGE;
-extern const char*  kPARSE_USAGE_SIMPLE;
+
+extern int          verbose;
 
 #endif  /* CONSTANT_H_ */

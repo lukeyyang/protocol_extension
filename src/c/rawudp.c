@@ -1,7 +1,8 @@
 /**
  * rawudp.c
  * client code for the experiment of UDP options extension
- * usage: rawudp [-h src_addr] [-f src_port] [-d dst_addr] [-p dst_port]
+ * usage: 
+ *   rawudp [-h src_addr] [-f src_port] [-d dst_addr] [-p dst_port] [-v]
  * requires root privilege
  *
  * creates our OOB UDP packet and sends it through a raw UDP socket 3 times
@@ -43,7 +44,9 @@ main(int argc, char** argv)
         strncpy(src_addr, kIP_LOCALHOST, 16);
         strncpy(dst_addr, kIP_LOCALHOST, 16);
 
-        parse_args(argc, argv, src_addr, &src_port, dst_addr, &dst_port);
+        parse_args(argc, argv, 
+                        src_addr, &src_port, dst_addr, &dst_port,
+                        &verbose);
 
         printf("src: %s: %d\n", src_addr, src_port);
         printf("dst: %s: %d\n", dst_addr, dst_port);

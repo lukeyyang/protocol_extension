@@ -1,7 +1,7 @@
 /**
  * twhs_server.c
  * server code for receiving TCP OOB packet before and during a TCP connection
- * usage: twhs_server [-p portno]
+ * usage: twhs_server [-p portno] [-v]
  * requires root privilege
  *
  * uses raw IP sockets
@@ -30,22 +30,21 @@
 #include "os_detect.h"
 #include "utility.h"
 #include "constant.h"
+#include "debug.h"
 
 #define FAILURE -1
 
-/* usage: twhs_server [-p port] */
 int 
 main(int argc, char** argv)
 {
         /* command line argument: port number to listen to */
         int local_port = kLISTEN_PORT_DEFAULT;
-        parse_args_simple(argc, argv, &local_port);
+        parse_args_simple(argc, argv, &local_port, &verbose);
 
         /* get two sockets to play with */
         int sd  = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
         if (sd < 0) {
-                fprintf(stderr, 
-                        "socket() error: %s\n", strerror(errno));
+                LOGX("socket()");
                 return FAILURE;
         }
 
@@ -56,8 +55,7 @@ main(int argc, char** argv)
         /* set the socket to be on raw IP level */
         s = setsockopt(sd, IPPROTO_IP, IP_HDRINCL, &one, sizeof(one));
         if (s < 0) {
-                fprintf(stderr,
-                        "setsockopt() error: %s\n", strerror(errno));
+                LOGX("setsockopt()");
                 return FAILURE;
         }
 
@@ -70,8 +68,7 @@ main(int argc, char** argv)
 
         s = bind(sd, (struct sockaddr*) &servaddr, sizeof(servaddr));
         if (s < 0) {
-                fprintf(stderr,
-                        "bind() error: %s\n", strerror(errno));
+                LOGX("bind()");
                 return FAILURE;
         }
 
@@ -104,8 +101,7 @@ main(int argc, char** argv)
                         n = read(sd, msg, kBUFFER_MAX_LEN);
                 }
                 if (n < 0) {
-                        fprintf(stderr,
-                                "recvfrom() error: %s\n", strerror(errno));
+                        LOGX("recvfrom()");
                         return FAILURE;
                 }
                 printf("**** Packet %d coming in ****\n", i);
@@ -114,28 +110,22 @@ main(int argc, char** argv)
 
                 /* integrity check */
                 if (n < kIP_HDR_LEN + kTCP_HDR_LEN) {
-                        fprintf(stderr,
-                                "fatal: header length incomplete\n");
+                        LOGX("fatal: header length incomplete");
                         return FAILURE;
                 }
                 
                 struct ip* ip_hdr = (struct ip*) msg;
                 if ((ip_hdr->ip_hl != 5) || (ip_hdr->ip_v != 4)) {
-                        fprintf(stderr,
-                                "fatal: IP header corrupt\n");
+                        LOGX("fatal: IP header corrupt");
                         return FAILURE;
                 }
                 if (ntohs(ip_hdr->ip_len) != n) {
-                        fprintf(stderr,
-                                "fatal: IP header indicates a different "
-                                "byte count from read(): %d\n", 
+                        LOGX("fatal: read() bytes count didn't match: %d",
                                 ntohs(ip_hdr->ip_len));
                         return FAILURE;
                 }
                 if (ip_hdr->ip_p != IPPROTO_TCP) {
-                        fprintf(stderr,
-                                "fatal: IP header says it's not "
-                                "a TCP packet\n");
+                        LOGX( "fatal: not a TCP packet");
                         return FAILURE;
                 }
                 char incoming_src_addr[16];
@@ -215,9 +205,7 @@ main(int argc, char** argv)
                         if (sendto(sd, synack_pkt, kSYNACK_PKT_LEN, 0, 
                                    (struct sockaddr*) &dst_in, sizeof(dst_in)) 
                             < 0) {
-                                fprintf(stderr, 
-                                        "sendto() error: %s\n", 
-                                        strerror(errno));
+                                LOGX("sendto()");
                         } else {
                                 printf("\tSYNACK packet successfully sent "
                                        "from %s:%d to %s:%d\n",
@@ -263,7 +251,7 @@ main(int argc, char** argv)
                         printf("\n");
 
                 } else {
-                        fprintf(stderr, "unrecognized TCP flag\n");
+                        LOGX("unrecognized TCP flag");
                 }
 
                 printf("**** end of packet %d ****\n", i);

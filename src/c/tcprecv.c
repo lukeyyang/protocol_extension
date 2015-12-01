@@ -1,7 +1,7 @@
 /**
  * tcprecv.c
  * server code for sending a TCP OOB packet before and after a TCP connection
- * usage: tcprecv [-p portno]
+ * usage: tcprecv [-p portno] [-v]
  *
  * prints out TCP payload if there's any
  * works in pair with rawtcp 
@@ -22,6 +22,7 @@
 #include "os_detect.h"
 #include "utility.h"
 #include "constant.h"
+#include "debug.h"
 
 #define FAILURE -1
 
@@ -30,7 +31,7 @@ main(int argc, char** argv)
 {
         /* command line argument: port number to listen to */
         int dst_port = kLISTEN_PORT_DEFAULT;
-        parse_args_simple(argc, argv, &dst_port);
+        parse_args_simple(argc, argv, &dst_port, &verbose);
         printf("Listening to localhost port: %d\n", dst_port);
 
 

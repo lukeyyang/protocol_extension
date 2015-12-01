@@ -1,7 +1,8 @@
 /**
  * twhs_client.c
  * client code for sending TCP OOB packet before and during a TCP connection
- * usage: twhs_client [-h src_addr] [-f src_port] [-d dst_addr] [-p dst_port]
+ * usage:
+ *   twhs_client [-h src_addr] [-f src_port] [-d dst_addr] [-p dst_port] [-v]
  * requires root privilege
  *
  * currently uses two raw IP sockets, one for sending and one for receiving
@@ -29,6 +30,7 @@
 #include "os_detect.h"
 #include "utility.h"
 #include "constant.h"
+#include "debug.h"
 
 #define FAILURE -1
 
@@ -36,8 +38,8 @@
 void 
 print_info()
 {
-        printf("ARGS: [-h src_addr] [-f src_port] "
-               "[-d dst_addr] [-p dst_port]\n"
+        LOGV("ARGS: [-h src_addr] [-f src_port] "
+               "[-d dst_addr] [-p dst_port] [-v]\n"
                "*IMPORTANT*: source address (-h) is by default 127.0.0.1;\n"
                "  unless you are receiving from localhost, you SHOULD change\n"
                "  it to your real IP address\n"
@@ -49,9 +51,6 @@ print_info()
 int
 main(int argc, char** argv)
 {
-        /* Print out some useful information */
-        print_info();
-
         /* COMMAND LINE PARSING */
 
         int src_port = kSRC_PORT_DEFAULT;
@@ -64,7 +63,12 @@ main(int argc, char** argv)
         strncpy(src_addr, kIP_LOCALHOST, 16);
         strncpy(dst_addr, kIP_LOCALHOST, 16);
 
-        parse_args(argc, argv, src_addr, &src_port, dst_addr, &dst_port);
+        parse_args(argc, argv, 
+                        src_addr, &src_port, dst_addr, &dst_port,
+                        &verbose);
+
+        /* Print out some useful information */
+        print_info();
 
         printf("src: %s: %d\n", src_addr, src_port);
         printf("dst: %s: %d\n", dst_addr, dst_port);
@@ -85,15 +89,14 @@ main(int argc, char** argv)
         src_in.sin_addr.s_addr = htonl(INADDR_ANY);
         dst_in.sin_addr.s_addr = inet_addr(dst_addr);
         if (dst_in.sin_addr.s_addr == INADDR_NONE) {
-                fprintf(stderr, "malformed inet_addr() request\n");
+                LOGX("malformed inet_addr() request");
                 return FAILURE;
         }
      
         /* get a socket to play with */
         int sd = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
         if (sd < 0) {
-                fprintf(stderr, 
-                        "sd = socket() error: %s\n", strerror(errno));
+                LOGX("socket()");
                 return FAILURE;
         }
 
@@ -103,8 +106,7 @@ main(int argc, char** argv)
         /* set the socket to be on raw IP level */
         s = setsockopt(sd, IPPROTO_IP, IP_HDRINCL, &one, sizeof(one));
         if (s < 0) {
-                fprintf(stderr, 
-                        "setsockopt() error: %s\n", strerror(errno));
+                LOGX("setsockopt()");
                 close(sd);
                 return FAILURE;
         }
@@ -137,7 +139,7 @@ main(int argc, char** argv)
 
         if (sendto(sd, oob_pkt, kOOB_PKT_LEN , 0, 
                    (struct sockaddr*) &dst_in, sizeof(dst_in)) < 0) {
-                fprintf(stderr, "sendto() error: %s\n", strerror(errno));
+                LOGX("sendto()");
                 free(syn_pkt);
                 free(oob_pkt);
                 close(sd);
@@ -152,7 +154,7 @@ main(int argc, char** argv)
 
         if (sendto(sd, syn_pkt, kSYN_PKT_LEN, 0, 
                    (struct sockaddr*) &dst_in, sizeof(dst_in)) < 0) {
-                fprintf(stderr, "sendto() error: %s\n", strerror(errno));
+                LOGX("sendto()");
                 free(syn_pkt);
                 free(oob_pkt);
                 close(sd);
@@ -172,7 +174,7 @@ main(int argc, char** argv)
 
         if (sendto(sd, oob_pkt, kOOB_PKT_LEN , 0, 
                    (struct sockaddr*) &dst_in, sizeof(dst_in)) < 0) {
-                fprintf(stderr, "sendto() error: %s\n", strerror(errno));
+                LOGX("sendto()");
                 free(oob_pkt);
                 close(sd);
                 return FAILURE;
@@ -185,16 +187,14 @@ main(int argc, char** argv)
         /* get another socket to play with */
         int sd2 = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
         if (sd2 < 0) {
-                fprintf(stderr, 
-                        "sd2 = socket() error: %s\n", strerror(errno));
+                LOGX("socket()");
                 return FAILURE;
         }
 
         /* set this socket to be on raw IP level */
         s = setsockopt(sd2, IPPROTO_IP, IP_HDRINCL, &one, sizeof(one));
         if (s < 0) {
-                fprintf(stderr, 
-                        "setsockopt() error: %s\n", strerror(errno));
+                LOGX("setsockopt()");
                 close(sd2);
                 return FAILURE;
         }
@@ -204,8 +204,7 @@ main(int argc, char** argv)
          */
         s = bind(sd2, (struct sockaddr*) &src_in, sizeof(src_in));
         if (s < 0) {
-                fprintf(stderr,
-                        "bind() error: %s\n", strerror(errno));
+                LOGX("bind()");
                 close(sd);
                 return FAILURE;
         }
@@ -221,20 +220,18 @@ main(int argc, char** argv)
         n = recvfrom(sd2, msg, kBUFFER_MAX_LEN, 0, 
                         (struct sockaddr*) &dst_in, &len);
         if (n < 0) {
-                fprintf(stderr,
-                        "recvfrom() error: %s\n", strerror(errno));
+                LOGX("recvfrom()");
                 free(oob_pkt);
                 close(sd);
                 return FAILURE;
         } else {
                 printf("Received %d bytes\n", n);
-                hexdump("received_packet", (void*) msg, n);
+                LOGP("received_packet", (void*) msg, n);
         }
         
         /* integrity check */
         if (n < kIP_HDR_LEN + kTCP_HDR_LEN) {
-                fprintf(stderr,
-                        "fatal: header length incomplete\n");
+                LOGX("fatal: header length incomplete");
                 free(oob_pkt);
                 close(sd);
                 return FAILURE;
@@ -242,25 +239,20 @@ main(int argc, char** argv)
         
         struct ip* ip_hdr = (struct ip*) msg;
         if ((ip_hdr->ip_hl != 5) || (ip_hdr->ip_v != 4)) {
-                fprintf(stderr,
-                        "fatal: IP header corrupt\n");
+                LOGX("fatal: IP header corrupt");
                 free(oob_pkt);
                 close(sd);
                 return FAILURE;
         }
         if (ntohs(ip_hdr->ip_len) != n) {
-                fprintf(stderr,
-                        "fatal: IP header indicates a different "
-                        "byte count from read(): %d\n", 
+                LOGX("fatal: read bytes count didn't match: %d",
                         ntohs(ip_hdr->ip_len));
                 free(oob_pkt);
                 close(sd);
                 return FAILURE;
         }
         if (ip_hdr->ip_p != IPPROTO_TCP) {
-                fprintf(stderr,
-                        "fatal: IP header says it's not "
-                        "a TCP packet\n");
+                LOGX("fatal: not a TCP packet");
                 free(oob_pkt);
                 close(sd);
                 return FAILURE;
@@ -314,7 +306,7 @@ main(int argc, char** argv)
 
                 if (sendto(sd, oob_pkt, kOOB_PKT_LEN , 0, 
                            (struct sockaddr*) &dst_in, sizeof(dst_in)) < 0) {
-                        fprintf(stderr, "sendto() error: %s\n", strerror(errno));
+                        LOGX("sendto()");
                         free(oob_pkt);
                         close(sd);
                         return FAILURE;
@@ -322,7 +314,7 @@ main(int argc, char** argv)
                         printf("\tOOB packet successfully sent\n");
                 }
         } else {
-                fprintf(stderr, "unrecognized TCP flag\n");
+                LOGX("unrecognized TCP flag");
                 free(oob_pkt);
                 close(sd);
                 close(sd2);
