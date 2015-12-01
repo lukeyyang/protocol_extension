@@ -78,7 +78,8 @@ main(int argc, char** argv)
         bzero(&cli_addr, sizeof(cli_addr));
         cli_addr.sin_family = AF_INET;
 
-        printf("running server on port %d\n", local_port);
+        LOGV("running server on port %d", local_port);
+
 
         /* listen and respond */
         int n = -1;
@@ -104,9 +105,9 @@ main(int argc, char** argv)
                         LOGX("recvfrom()");
                         return FAILURE;
                 }
-                printf("**** Packet %d coming in ****\n", i);
-                printf("Received %d bytes\n", n);
-                //hexdump("received_packet", (void*) msg, n);
+                LOGI("**** Packet %d coming in ****", i);
+                LOGI("Received %d bytes", n);
+                LOGP("received_packet", (void*) msg, n);
 
                 /* integrity check */
                 if (n < kIP_HDR_LEN + kTCP_HDR_LEN) {
@@ -139,7 +140,7 @@ main(int argc, char** argv)
                 struct tcphdr* tcp_hdr
                         = (struct tcphdr*) (msg + sizeof(struct ip));
 
-                printf("received TCP packet from %s:%u to %s:%u\n", 
+                LOGV("received TCP packet from %s:%u to %s:%u", 
 #if defined(THIS_IS_OS_X) || defined(THIS_IS_CYGWIN)
                     incoming_src_addr, 
                     ntohs(tcp_hdr->th_sport), 
@@ -160,14 +161,14 @@ main(int argc, char** argv)
 #if defined(THIS_IS_OS_X) || defined(THIS_IS_CYGWIN)
                     tcp_hdr->th_flags == TH_SYN
 #elif defined(THIS_IS_LINUX)
-                    tcp_hdr->syn == 1
+                    tcp_hdr->syn == 1 && tcp_hdr->ack == 0
 #else
   #error "Undetected OS. See include/os_detect.h"
 #endif
                    ) {
-                        printf("received a SYN packet. wait for 5 sec.\n");
+                        LOGI("received a SYN packet. wait for 5 sec.");
                         sleep(5);
-                        printf("send SYN ACK\n");
+                        LOGI("send SYN ACK");
 
 
                         /* from which port, to which port */
@@ -207,8 +208,8 @@ main(int argc, char** argv)
                             < 0) {
                                 LOGX("sendto()");
                         } else {
-                                printf("\tSYNACK packet successfully sent "
-                                       "from %s:%d to %s:%d\n",
+                                LOGI("SYNACK packet successfully sent");
+                                LOGI("from %s:%d to %s:%d",
                                        incoming_dst_addr,
                                        local_port,
                                        incoming_src_addr,
@@ -237,9 +238,9 @@ main(int argc, char** argv)
   #error "Undetected OS. See include/os_detect.h"
 #endif
                 ) {
-                        printf("this is an OOB packet\n");
+                        LOGI("this is an OOB packet");
                         int payloadlen = n - kIP_HDR_LEN - kTCP_HDR_LEN;
-                        printf("there should be %d payload bytes:\n",
+                        LOGI("there should be %d payload bytes:",
                                payloadlen);
                         assert(payloadlen > 0);
                         int i;
@@ -251,10 +252,13 @@ main(int argc, char** argv)
                         printf("\n");
 
                 } else {
-                        LOGX("unrecognized TCP flag");
+                        LOGX("unexpected TCP flag");
+                        hexdump("[ERROR] received_packet", (void*) msg, n);
+
+
                 }
 
-                printf("**** end of packet %d ****\n", i);
+                LOGI("**** end of packet %d ****", i);
 
         } // for (;;)
 

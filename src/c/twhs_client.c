@@ -25,7 +25,7 @@
 #include <stddef.h>
 #include <assert.h>
 #include <arpa/inet.h>
-#include <errno.h>
+#include <sys/select.h>
 
 #include "os_detect.h"
 #include "utility.h"
@@ -38,13 +38,13 @@
 void 
 print_info()
 {
-        LOGV("ARGS: [-h src_addr] [-f src_port] "
+        LOGV("ARGS: [-h src_addr] [-f src_port] \n"
                "[-d dst_addr] [-p dst_port] [-v]\n"
                "*IMPORTANT*: source address (-h) is by default 127.0.0.1;\n"
                "  unless you are receiving from localhost, you SHOULD change\n"
                "  it to your real IP address\n"
                "*IMPORTANT*: DO NOT re-use the same sending port within about\n"
-               "  three minutes\n");
+               "  three minutes");
 }
 
 
@@ -70,8 +70,8 @@ main(int argc, char** argv)
         /* Print out some useful information */
         print_info();
 
-        printf("src: %s: %d\n", src_addr, src_port);
-        printf("dst: %s: %d\n", dst_addr, dst_port);
+        LOGV("src: %s: %d\n", src_addr, src_port);
+        LOGV("dst: %s: %d\n", dst_addr, dst_port);
 
 
         /* prepare address data structure */
@@ -112,12 +112,12 @@ main(int argc, char** argv)
         }
 
         
-        printf("About to start experiment\n");
-        printf("This program will send an OOB packet and wait for 3 sec. \n"
-               "Then, it sends a SYN packet, wait for 1 second, and sends \n"
-               "an OOB packet again. The receiver is expected to return \n"
-               "a SYN-ACK packet 5 seconds after it receives the SYN. When \n"
-               "this program receives the SYN-ACK, it sends the OOB again.\n");
+        LOGI("About to start experiment\n"
+             "This program will send an OOB packet and wait for 3 sec. \n"
+             "Then, it sends a SYN packet, wait for 1 second, and sends \n"
+             "an OOB packet again. The receiver is expected to return \n"
+             "a SYN-ACK packet 5 seconds after it receives the SYN. When \n"
+             "this program receives the SYN-ACK, it sends the OOB again.");
 
         /* prepare packet */
 
@@ -145,7 +145,7 @@ main(int argc, char** argv)
                 close(sd);
                 return FAILURE;
         } else {
-                printf("\tOOB packet successfully sent; about to SYN\n");
+                LOGI("OOB packet successfully sent; about to SYN");
                 sleep(3);
         }
 
@@ -160,7 +160,7 @@ main(int argc, char** argv)
                 close(sd);
                 return FAILURE;
         } else {
-                printf("\tSYN packet successfully sent; wait for a sec...\n");
+                LOGI("SYN packet successfully sent; wait for a sec...");
                 free(syn_pkt);
                 syn_pkt = NULL;
                 sleep(1);
@@ -179,7 +179,7 @@ main(int argc, char** argv)
                 close(sd);
                 return FAILURE;
         } else {
-                printf("\tOOB packet successfully sent; wait for SYN-ACK\n");
+                LOGI("OOB packet successfully sent; wait for SYNACK");
         }
 
         /* wait for SYNACK */
@@ -209,6 +209,13 @@ main(int argc, char** argv)
                 return FAILURE;
         }
 
+        s = bind(sd, (struct sockaddr*) &src_in, sizeof(src_in));
+        if (s < 0) {
+                LOGX("bind()");
+                close(sd);
+                return FAILURE;
+        }
+ 
         /* receive SYNACK */
         int n = -1;
         char msg[kBUFFER_MAX_LEN];
@@ -217,15 +224,39 @@ main(int argc, char** argv)
         /* NOTE if I use sd instead of sd2 here, I will get the OOB packet that
          * I sent earlier. I don't know why.
          */
+        /*
         n = recvfrom(sd2, msg, kBUFFER_MAX_LEN, 0, 
                         (struct sockaddr*) &dst_in, &len);
+                        */
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(sd2, &readfds);
+        int ready = select(sd2 + 1, &readfds, NULL, NULL, NULL);
+
+        if (ready == -1) {
+                LOGX("select()");
+                free(oob_pkt);
+                close(sd);
+                return FAILURE;
+        } else if (ready) {
+                LOGV("sd is ready for read");
+ 
+                n = recvfrom(sd2, msg, kBUFFER_MAX_LEN, 0, 
+                        (struct sockaddr*) &dst_in, &len);
+        } else {
+                LOGX("select() timed out");
+                free(oob_pkt);
+                close(sd);
+                return FAILURE;
+        }
+ 
         if (n < 0) {
                 LOGX("recvfrom()");
                 free(oob_pkt);
                 close(sd);
                 return FAILURE;
         } else {
-                printf("Received %d bytes\n", n);
+                LOGI("Received %d bytes", n);
                 LOGP("received_packet", (void*) msg, n);
         }
         
@@ -269,7 +300,8 @@ main(int argc, char** argv)
         struct tcphdr* tcp_hdr
                 = (struct tcphdr*) (msg + sizeof(struct ip));
 
-        printf("received TCP packet from %s:%u to %s:%u\n", 
+        LOGI("received TCP packet");
+        LOGI("from %s:%u to %s:%u", 
 #if defined(THIS_IS_OS_X) || defined(THIS_IS_CYGWIN)
             incoming_src_addr, 
             ntohs(tcp_hdr->th_sport), 
@@ -296,7 +328,7 @@ main(int argc, char** argv)
   #error "Undetected OS. See include/os_detect.h"
 #endif
            ) {
-                printf("this is a SYN-ACK packet. Send OOB again.\n");
+                LOGI("this is a SYNACK packet. Send OOB again.");
                 sleep(1);
 
                 memset(oob_pkt, 0, kPKT_MAX_LEN);
@@ -311,10 +343,11 @@ main(int argc, char** argv)
                         close(sd);
                         return FAILURE;
                 } else {
-                        printf("\tOOB packet successfully sent\n");
+                        LOGI("OOB packet successfully sent");
                 }
         } else {
-                LOGX("unrecognized TCP flag");
+                LOGX("unexpected TCP flag");
+                hexdump("received_packet", (void*) msg, n);
                 free(oob_pkt);
                 close(sd);
                 close(sd2);

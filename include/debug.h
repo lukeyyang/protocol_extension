@@ -24,6 +24,10 @@
                 __FILE__, __LINE__, clear_errno(), ##__VA_ARGS__)
 
 #define LOGV(M, ...) if (verbose) \
+        fprintf(stderr, "[DEBUG] (%s:%d) " M "\n", \
+                __FILE__, __LINE__, ##__VA_ARGS__)
+
+#define LOGI(M, ...) \
         fprintf(stderr, "[INFO] (%s:%d) " M "\n", \
                 __FILE__, __LINE__, ##__VA_ARGS__)
 
