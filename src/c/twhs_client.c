@@ -36,22 +36,32 @@
 
 #define PEACEOUT_W {\
         close(sfd_w); \
+        LOGV("closed sfd_w. shutting down"); \
         return FAILURE; \
 }
 
 #define PEACEOUT_OW {\
         FREE_PTR(oob_pkt); \
+        LOGV("cleaned up OOB packet"); \
         PEACEOUT_W; \
 }
 
 #define PEACEOUT_OWR {\
         FREE_PTR(oob_pkt); \
+        LOGV("cleaned up OOB packet"); \
         close(sfd_r); \
+        LOGV("closed sfd_r"); \
         PEACEOUT_W; \
 }
 #define PEACEOUT_SW {\
         FREE_PTR(syn_pkt); \
+        LOGV("cleaned up SYN packet"); \
         PEACEOUT_W; \
+}
+#define PEACEOUT_SOW {\
+        FREE_PTR(syn_pkt); \
+        LOGV("cleaned up SYN packet"); \
+        PEACEOUT_OW; \
 }
 int
 main(int argc, char** argv)
@@ -83,9 +93,8 @@ main(int argc, char** argv)
                 }
         }
 
-        LOGV("client: %s: %d\n", src_addr, src_port);
-        LOGV("server: %s: %d\n", dst_addr, dst_port);
-
+        LOGV("client: %s: %d", src_addr, src_port);
+        LOGV("server: %s: %d", dst_addr, dst_port);
 
         /* prepares address data structure */
         struct sockaddr_in src_in, dst_in; 
@@ -140,15 +149,16 @@ main(int argc, char** argv)
         }
 
 
-        LOGV("prepared two raw IP sockets");
+        LOGV("prepared socket for write");
 
         
         LOGI("About to start experiment");
-        LOGI("This program will send an OOB packet and wait for 3 sec.");
-        LOGI("Then, it sends a SYN packet, wait for 1 second, and sends");
-        LOGI("an OOB packet again. The receiver is expected to return");
-        LOGI("a SYN-ACK packet 5 seconds after it receives the SYN. When");
-        LOGI("this program receives the SYN-ACK, it sends the OOB again.");
+        LOGV("This program will send an OOB packet and wait");
+        LOGV("for 3 second. Then, it sends a SYN packet, waits"); 
+        LOGV("for 1 second, and sends an OOB packet again."); 
+        LOGV("The receiver is expected to return a SYNACK");
+        LOGV("five seconds after it receives the SYN. When this");
+        LOGV("program sees the SYN-ACK, it sends the OOB again.");
 
 
         /* prepares OOB packet */
@@ -162,7 +172,7 @@ main(int argc, char** argv)
                             &oob_pkt, src_port, dst_port, src_addr, dst_addr);
         if (s) {
                 LOGX("prepare_tcp_pkt()");
-                PEACEOUT_W;
+                PEACEOUT_OW;
         }
         const size_t kOOB_PKT_LEN = kIP_HDR_LEN + kTCP_HDR_LEN
                                  + strlen(kPAYLOAD); /* now with data */
@@ -174,14 +184,14 @@ main(int argc, char** argv)
         char* syn_pkt = malloc(kPKT_MAX_LEN);
         if (syn_pkt == NULL) {
                 LOGX("malloc()");
-                PEACEOUT_W;
+                PEACEOUT_OW;
         }
         memset(syn_pkt, 0, kPKT_MAX_LEN);
         s = prepare_tcp_pkt(kPKT_TYPE_SYN, 
                             &syn_pkt, src_port, dst_port, src_addr, dst_addr);
         if (s) {
                 LOGX("prepare_tcp_pkt()");
-                PEACEOUT_SW;
+                PEACEOUT_SOW;
         }
         const size_t kSYN_PKT_LEN = kIP_HDR_LEN + kTCP_HDR_LEN;
 
@@ -192,9 +202,9 @@ main(int argc, char** argv)
         if (sendto(sfd_w, oob_pkt, kOOB_PKT_LEN , 0, 
                    (struct sockaddr*) &dst_in, sizeof(dst_in)) < 0) {
                 LOGX("sendto()");
-                PEACEOUT_SW;
+                PEACEOUT_SOW;
         } else {
-                LOGI("first OOB packet successfully sent; next: SYN");
+                LOGI("sent first OOB packet; next: SYN");
                 sleep(3);
         }
 
@@ -203,10 +213,11 @@ main(int argc, char** argv)
         if (sendto(sfd_w, syn_pkt, kSYN_PKT_LEN, 0, 
                    (struct sockaddr*) &dst_in, sizeof(dst_in)) < 0) {
                 LOGX("sendto()");
-                PEACEOUT_SW;
+                PEACEOUT_SOW;
         } else {
-                LOGI("SYN packet successfully sent; next: second OOB");
+                LOGI("sent SYN; next: second OOB");
                 FREE_PTR(syn_pkt);
+                LOGV("cleaned up SYN packet");
                 sleep(1);
         }
 
@@ -229,7 +240,7 @@ main(int argc, char** argv)
                 LOGX("sendto()");
                 PEACEOUT_OW;
         } else {
-                LOGI("second OOB packet successfully sent; waiting for SYNACK");
+                LOGI("sent second OOB packet; waiting for SYNACK");
         }
 
 
@@ -245,7 +256,7 @@ main(int argc, char** argv)
                 PEACEOUT_OW;
         }
 
-        /* sets the two sockets to be raw IP sockets */
+        /* sets the read socket to be a raw IP socket */
         s = setsockopt(sfd_r, IPPROTO_IP, IP_HDRINCL, &one, sizeof(one));
         if (s < 0) {
                 LOGX("setsockopt()");
@@ -259,10 +270,12 @@ main(int argc, char** argv)
                 PEACEOUT_OWR;
         }
 
-        /* adds the read socket to a fd set for read */
+        /* adds the read socket to an fd set for read */
         fd_set readfds;
         FD_ZERO(&readfds);
         FD_SET(sfd_r, &readfds);
+
+        LOGV("prepared socket for read");
 
         /* select() will wait for 10 seconds max */
         struct timeval timeout;
@@ -279,7 +292,7 @@ main(int argc, char** argv)
                 LOGX("select()");
                 PEACEOUT_OWR;
         } else if (ready) {
-                LOGV("sfd_w is ready for read");
+                LOGV("sfd_r is ready for read");
                 socklen_t len = sizeof(dst_in);
                 n = recvfrom(sfd_r, msg, kBUFFER_MAX_LEN, 0, 
                         (struct sockaddr*) &dst_in, &len);
@@ -319,8 +332,7 @@ main(int argc, char** argv)
         struct tcphdr* tcp_hdr
                 = (struct tcphdr*) (msg + sizeof(struct ip));
 
-        LOGI("received a TCP packet");
-        LOGI("from %s:%u to %s:%u", 
+        LOGI("received a TCP packet from %s:%u to %s:%u", 
 #if defined(THIS_IS_OS_X) || defined(THIS_IS_CYGWIN)
             incoming_src_addr, 
             ntohs(tcp_hdr->th_sport), 
@@ -365,8 +377,8 @@ main(int argc, char** argv)
                         LOGX("sendto()");
                         PEACEOUT_OWR;
                 } else {
-                        LOGI("third OOB packet successfully sent; "
-                             "ending experiment on client side.");
+                        LOGI("sent third OOB packet; client side finishes.");
+                        LOGV("cleaned up OOB packet");
                         FREE_PTR(oob_pkt);
                 }
         } else {
@@ -376,9 +388,9 @@ main(int argc, char** argv)
         }
 
         /* I know it's bad not to check return value of close() */
+        LOGV("cleaning up");
         close(sfd_w);
         close(sfd_r);
+        LOGV("both sockets closed. shutting down");
         return 0;
-
-
 }
