@@ -16,6 +16,11 @@
 #define kPKT_TYPE_SYNACK 2
 #define kPKT_TYPE_ACK    3
 
+#define FREE_PTR(X) if (X) { \
+        free(X); \
+        X = NULL; \
+}
+
 extern char* optarg;
 extern int optind;
 extern int optopt;
@@ -26,8 +31,10 @@ extern int optreset;
  * prepares a TCP packet with customization
  * supports creation of OOB, SYN, SYNACK, and ACK
  * creates OOB packets with one digit of random number attached at the end
+ * caller is responsible for allocating sufficient space pointed to by *pkt_p
+ * returns non-zero value upon failure
  */
-void
+int 
 prepare_tcp_pkt(const int pkt_type,
                 char** pkt_p, 
                 const int src_port,
@@ -73,5 +80,9 @@ tcp_checksum(struct ip* ip_hdr, struct tcphdr* tcphdr);
  */
 void
 hexdump(const char* const desc, const void* const addr, int len);
+
+/* converts an unsigned short number into 8-bit binary in C-string */
+const char* 
+byte_to_binary(unsigned short x);
 
 #endif /* UTILITY_H */

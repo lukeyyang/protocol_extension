@@ -28,8 +28,7 @@
                 __FILE__, __LINE__, ##__VA_ARGS__)
 
 #define LOGI(M, ...) \
-        fprintf(stderr, "[INFO] (%s:%d) " M "\n", \
-                __FILE__, __LINE__, ##__VA_ARGS__)
+        fprintf(stderr, "[INFO] " M "\n", ##__VA_ARGS__)
 
 #define LOGP(X, Y, Z) if (verbose) \
         hexdump(X, Y, Z)

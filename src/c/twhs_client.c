@@ -17,15 +17,15 @@
 #include <netinet/ip.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <sys/select.h>
+#include <sys/time.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stddef.h>
-#include <assert.h>
 #include <arpa/inet.h>
-#include <sys/select.h>
 
 #include "os_detect.h"
 #include "utility.h"
@@ -34,25 +34,29 @@
 
 #define FAILURE -1
 
-
-void 
-print_info()
-{
-        LOGV("ARGS: [-h src_addr] [-f src_port] \n"
-               "[-d dst_addr] [-p dst_port] [-v]\n"
-               "*IMPORTANT*: source address (-h) is by default 127.0.0.1;\n"
-               "  unless you are receiving from localhost, you SHOULD change\n"
-               "  it to your real IP address\n"
-               "*IMPORTANT*: DO NOT re-use the same sending port within about\n"
-               "  three minutes");
+#define PEACEOUT_W {\
+        close(sfd_w); \
+        return FAILURE; \
 }
 
+#define PEACEOUT_OW {\
+        FREE_PTR(oob_pkt); \
+        PEACEOUT_W; \
+}
 
+#define PEACEOUT_OWR {\
+        FREE_PTR(oob_pkt); \
+        close(sfd_r); \
+        PEACEOUT_W; \
+}
+#define PEACEOUT_SW {\
+        FREE_PTR(syn_pkt); \
+        PEACEOUT_W; \
+}
 int
 main(int argc, char** argv)
 {
-        /* COMMAND LINE PARSING */
-
+        /* parses command line args */
         int src_port = kSRC_PORT_DEFAULT;
         int dst_port = kDST_PORT_DEFAULT;
 
@@ -67,15 +71,23 @@ main(int argc, char** argv)
                         src_addr, &src_port, dst_addr, &dst_port,
                         &verbose);
 
-        /* Print out some useful information */
-        print_info();
+        if (!strncmp(src_addr, "127.0.0.1", 16)) {
+                if (!strncmp(dst_addr, "127.0.0.1", 16)) {
+                        LOGW("Source IP address is default value 127.0.0.1. "
+                             "This is discouraged. It is only allowed to do "
+                             "so if localhost is the destination.");
+                } else {
+                        LOGX("Sending from 127.0.0.1 to non-localhost IP is "
+                             "disallowed.");
+                        return FAILURE;
+                }
+        }
 
-        LOGV("src: %s: %d\n", src_addr, src_port);
-        LOGV("dst: %s: %d\n", dst_addr, dst_port);
+        LOGV("client: %s: %d\n", src_addr, src_port);
+        LOGV("server: %s: %d\n", dst_addr, dst_port);
 
 
-        /* prepare address data structure */
-
+        /* prepares address data structure */
         struct sockaddr_in src_in, dst_in; 
         bzero(&src_in, sizeof(src_in));
         bzero(&dst_in, sizeof(dst_in));
@@ -92,202 +104,209 @@ main(int argc, char** argv)
                 LOGX("malformed inet_addr() request");
                 return FAILURE;
         }
+
+        LOGV("prepared src and dst data structures");
      
-        /* get a socket to play with */
-        int sd = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
-        if (sd < 0) {
+        /* gets a socket to write to */
+        int sfd_w = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
+        if (sfd_w < 0) {
                 LOGX("socket()");
                 return FAILURE;
         }
-
-        int s = 1;
-        int one = 1;
-        
-        /* set the socket to be on raw IP level */
-        s = setsockopt(sd, IPPROTO_IP, IP_HDRINCL, &one, sizeof(one));
-        if (s < 0) {
-                LOGX("setsockopt()");
-                close(sd);
+        /*  ** declaring the read sfd here leads to problem **
+        int sfd_r = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
+        if (sfd_r < 0) {
+                LOGX("socket()");
                 return FAILURE;
         }
+        */
+
+
+        /* sets the write socket to be a raw IP socket */
+        int one = 1;
+        int s = 1;
+        /* ** declaring and configuring the read sfd here leads to problem **
+        s = setsockopt(sfd_r, IPPROTO_IP, IP_HDRINCL, &one, sizeof(one));
+        if (s < 0) {
+                LOGX("setsockopt()");
+                close(sfd_r);
+                return FAILURE;
+        }
+        */
+        s = setsockopt(sfd_w, IPPROTO_IP, IP_HDRINCL, &one, sizeof(one));
+        if (s < 0) {
+                LOGX("setsockopt()");
+                PEACEOUT_W;
+        }
+
+
+        LOGV("prepared two raw IP sockets");
 
         
-        LOGI("About to start experiment\n"
-             "This program will send an OOB packet and wait for 3 sec. \n"
-             "Then, it sends a SYN packet, wait for 1 second, and sends \n"
-             "an OOB packet again. The receiver is expected to return \n"
-             "a SYN-ACK packet 5 seconds after it receives the SYN. When \n"
-             "this program receives the SYN-ACK, it sends the OOB again.");
+        LOGI("About to start experiment");
+        LOGI("This program will send an OOB packet and wait for 3 sec.");
+        LOGI("Then, it sends a SYN packet, wait for 1 second, and sends");
+        LOGI("an OOB packet again. The receiver is expected to return");
+        LOGI("a SYN-ACK packet 5 seconds after it receives the SYN. When");
+        LOGI("this program receives the SYN-ACK, it sends the OOB again.");
 
-        /* prepare packet */
 
-        char* syn_pkt = malloc(kPKT_MAX_LEN);
+        /* prepares OOB packet */
         char* oob_pkt = malloc(kPKT_MAX_LEN);
-        memset(syn_pkt, 0, kPKT_MAX_LEN);
+        if (oob_pkt == NULL) {
+                LOGX("malloc()");
+                PEACEOUT_W;
+        }
         memset(oob_pkt, 0, kPKT_MAX_LEN);
-
-        prepare_tcp_pkt(kPKT_TYPE_SYN, 
-                        &syn_pkt, src_port, dst_port, src_addr, dst_addr);
-        prepare_tcp_pkt(kPKT_TYPE_OOB,
-                        &oob_pkt, src_port, dst_port, src_addr, dst_addr);
-
-        const size_t kSYN_PKT_LEN = kIP_HDR_LEN + kTCP_HDR_LEN;
+        s = prepare_tcp_pkt(kPKT_TYPE_OOB,
+                            &oob_pkt, src_port, dst_port, src_addr, dst_addr);
+        if (s) {
+                LOGX("prepare_tcp_pkt()");
+                PEACEOUT_W;
+        }
         const size_t kOOB_PKT_LEN = kIP_HDR_LEN + kTCP_HDR_LEN
                                  + strlen(kPAYLOAD); /* now with data */
 
-        /* OOB first */
+        LOGV("prepared first OOB packet");
 
-        if (sendto(sd, oob_pkt, kOOB_PKT_LEN , 0, 
+
+        /* prepares SYN packet */
+        char* syn_pkt = malloc(kPKT_MAX_LEN);
+        if (syn_pkt == NULL) {
+                LOGX("malloc()");
+                PEACEOUT_W;
+        }
+        memset(syn_pkt, 0, kPKT_MAX_LEN);
+        s = prepare_tcp_pkt(kPKT_TYPE_SYN, 
+                            &syn_pkt, src_port, dst_port, src_addr, dst_addr);
+        if (s) {
+                LOGX("prepare_tcp_pkt()");
+                PEACEOUT_SW;
+        }
+        const size_t kSYN_PKT_LEN = kIP_HDR_LEN + kTCP_HDR_LEN;
+
+        LOGV("prepared SYN packet");
+ 
+
+        /* sends first OOB packet */
+        if (sendto(sfd_w, oob_pkt, kOOB_PKT_LEN , 0, 
                    (struct sockaddr*) &dst_in, sizeof(dst_in)) < 0) {
                 LOGX("sendto()");
-                free(syn_pkt);
-                free(oob_pkt);
-                close(sd);
-                return FAILURE;
+                PEACEOUT_SW;
         } else {
-                LOGI("OOB packet successfully sent; about to SYN");
+                LOGI("first OOB packet successfully sent; next: SYN");
                 sleep(3);
         }
 
 
-        /* SYN */
-
-        if (sendto(sd, syn_pkt, kSYN_PKT_LEN, 0, 
+        /* sends SYN */
+        if (sendto(sfd_w, syn_pkt, kSYN_PKT_LEN, 0, 
                    (struct sockaddr*) &dst_in, sizeof(dst_in)) < 0) {
                 LOGX("sendto()");
-                free(syn_pkt);
-                free(oob_pkt);
-                close(sd);
-                return FAILURE;
+                PEACEOUT_SW;
         } else {
-                LOGI("SYN packet successfully sent; wait for a sec...");
-                free(syn_pkt);
-                syn_pkt = NULL;
+                LOGI("SYN packet successfully sent; next: second OOB");
+                FREE_PTR(syn_pkt);
                 sleep(1);
         }
 
-        /* now OOB again */
+
+        /* prepares second OOB packet */
         memset(oob_pkt, 0, kPKT_MAX_LEN);
-        prepare_tcp_pkt(kPKT_TYPE_OOB,
-                        &oob_pkt, src_port, dst_port, src_addr, dst_addr);
+        s = prepare_tcp_pkt(kPKT_TYPE_OOB,
+                            &oob_pkt, src_port, dst_port, src_addr, dst_addr);
+        if (s) {
+                LOGX("prepare_tcp_pkt()");
+                PEACEOUT_OW;
+        }
 
+        LOGV("prepared second OOB packet");
+ 
 
-        if (sendto(sd, oob_pkt, kOOB_PKT_LEN , 0, 
+        /* sends second OOB packet */
+        if (sendto(sfd_w, oob_pkt, kOOB_PKT_LEN , 0, 
                    (struct sockaddr*) &dst_in, sizeof(dst_in)) < 0) {
                 LOGX("sendto()");
-                free(oob_pkt);
-                close(sd);
-                return FAILURE;
+                PEACEOUT_OW;
         } else {
-                LOGI("OOB packet successfully sent; wait for SYNACK");
+                LOGI("second OOB packet successfully sent; waiting for SYNACK");
         }
 
-        /* wait for SYNACK */
 
-        /* get another socket to play with */
-        int sd2 = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
-        if (sd2 < 0) {
+        /**
+         * waits for SYNACK sent from the server as recorded in dst_in; 
+         * uses select() to know when it's ready
+         */
+
+        /* gets a second socket for read */
+        int sfd_r = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
+        if (sfd_r < 0) {
                 LOGX("socket()");
-                return FAILURE;
+                PEACEOUT_OW;
         }
 
-        /* set this socket to be on raw IP level */
-        s = setsockopt(sd2, IPPROTO_IP, IP_HDRINCL, &one, sizeof(one));
+        /* sets the two sockets to be raw IP sockets */
+        s = setsockopt(sfd_r, IPPROTO_IP, IP_HDRINCL, &one, sizeof(one));
         if (s < 0) {
                 LOGX("setsockopt()");
-                close(sd2);
-                return FAILURE;
-        }
- 
-        /* bind the socket to src_port
-         * NOTE if I don't bind() here, use read() below should work, too
-         */
-        s = bind(sd2, (struct sockaddr*) &src_in, sizeof(src_in));
-        if (s < 0) {
-                LOGX("bind()");
-                close(sd);
-                return FAILURE;
+                PEACEOUT_OWR;
         }
 
-        s = bind(sd, (struct sockaddr*) &src_in, sizeof(src_in));
+        /* assigns the read socket to src_port */
+        s = bind(sfd_r, (struct sockaddr*) &src_in, sizeof(src_in));
         if (s < 0) {
                 LOGX("bind()");
-                close(sd);
-                return FAILURE;
+                PEACEOUT_OWR;
         }
- 
-        /* receive SYNACK */
+
+        /* adds the read socket to a fd set for read */
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(sfd_r, &readfds);
+
+        /* select() will wait for 10 seconds max */
+        struct timeval timeout;
+        timeout.tv_sec = kSELECT_TIMEOUT;
+        timeout.tv_usec = 0;
+
         int n = -1;
         char msg[kBUFFER_MAX_LEN];
         bzero(msg, kBUFFER_MAX_LEN);
-        socklen_t len = sizeof(dst_in);
-        /* NOTE if I use sd instead of sd2 here, I will get the OOB packet that
-         * I sent earlier. I don't know why.
-         */
-        /*
-        n = recvfrom(sd2, msg, kBUFFER_MAX_LEN, 0, 
-                        (struct sockaddr*) &dst_in, &len);
-                        */
-        fd_set readfds;
-        FD_ZERO(&readfds);
-        FD_SET(sd2, &readfds);
-        int ready = select(sd2 + 1, &readfds, NULL, NULL, NULL);
+
+        int ready = select(sfd_r + 1, &readfds, NULL, NULL, &timeout);
 
         if (ready == -1) {
                 LOGX("select()");
-                free(oob_pkt);
-                close(sd);
-                return FAILURE;
+                PEACEOUT_OWR;
         } else if (ready) {
-                LOGV("sd is ready for read");
- 
-                n = recvfrom(sd2, msg, kBUFFER_MAX_LEN, 0, 
+                LOGV("sfd_w is ready for read");
+                socklen_t len = sizeof(dst_in);
+                n = recvfrom(sfd_r, msg, kBUFFER_MAX_LEN, 0, 
                         (struct sockaddr*) &dst_in, &len);
         } else {
                 LOGX("select() timed out");
-                free(oob_pkt);
-                close(sd);
-                return FAILURE;
+                PEACEOUT_OWR;
         }
  
         if (n < 0) {
                 LOGX("recvfrom()");
-                free(oob_pkt);
-                close(sd);
-                return FAILURE;
+                PEACEOUT_OWR;
         } else {
                 LOGI("Received %d bytes", n);
                 LOGP("received_packet", (void*) msg, n);
         }
         
-        /* integrity check */
+        /* some checking */
         if (n < kIP_HDR_LEN + kTCP_HDR_LEN) {
-                LOGX("fatal: header length incomplete");
-                free(oob_pkt);
-                close(sd);
-                return FAILURE;
+                LOGX("fatal: fewer bytes %d than needed for two headers!", n);
+                PEACEOUT_OWR;
         }
-        
         struct ip* ip_hdr = (struct ip*) msg;
-        if ((ip_hdr->ip_hl != 5) || (ip_hdr->ip_v != 4)) {
-                LOGX("fatal: IP header corrupt");
-                free(oob_pkt);
-                close(sd);
-                return FAILURE;
-        }
-        if (ntohs(ip_hdr->ip_len) != n) {
-                LOGX("fatal: read bytes count didn't match: %d",
-                        ntohs(ip_hdr->ip_len));
-                free(oob_pkt);
-                close(sd);
-                return FAILURE;
-        }
         if (ip_hdr->ip_p != IPPROTO_TCP) {
                 LOGX("fatal: not a TCP packet");
-                free(oob_pkt);
-                close(sd);
-                return FAILURE;
+                PEACEOUT_OWR;
         }
+
         char incoming_src_addr[16];
         char incoming_dst_addr[16];
         memset(incoming_src_addr, 0, 16);
@@ -296,11 +315,11 @@ main(int argc, char** argv)
         inet_ntop(AF_INET, &(ip_hdr->ip_src), incoming_src_addr, 16);
         inet_ntop(AF_INET, &(ip_hdr->ip_dst), incoming_dst_addr, 16);
 
-        /* check for SYNACK flags */
+        /* checks for SYNACK flags */
         struct tcphdr* tcp_hdr
                 = (struct tcphdr*) (msg + sizeof(struct ip));
 
-        LOGI("received TCP packet");
+        LOGI("received a TCP packet");
         LOGI("from %s:%u to %s:%u", 
 #if defined(THIS_IS_OS_X) || defined(THIS_IS_CYGWIN)
             incoming_src_addr, 
@@ -318,7 +337,7 @@ main(int argc, char** argv)
         );
                     
 
-
+        /* if incoming packet is SYNACK, respond with OOB */
         if (
 #if defined(THIS_IS_OS_X) || defined(THIS_IS_CYGWIN)
             tcp_hdr->th_flags == (TH_SYN | TH_ACK)
@@ -328,35 +347,38 @@ main(int argc, char** argv)
   #error "Undetected OS. See include/os_detect.h"
 #endif
            ) {
-                LOGI("this is a SYNACK packet. Send OOB again.");
+                LOGI("This is a SYNACK packet. Send OOB again.");
                 sleep(1);
 
+                /* prepares third OOB packet */
                 memset(oob_pkt, 0, kPKT_MAX_LEN);
-                prepare_tcp_pkt(kPKT_TYPE_OOB,
-                        &oob_pkt, src_port, dst_port, src_addr, dst_addr);
+                s = prepare_tcp_pkt(kPKT_TYPE_OOB,
+                            &oob_pkt, src_port, dst_port, src_addr, dst_addr);
+                if (s) {
+                        LOGX("prepare_tcp_pkt()");
+                        PEACEOUT_OWR;
+                }
 
-
-                if (sendto(sd, oob_pkt, kOOB_PKT_LEN , 0, 
+                /* sends third OOB packet */
+                if (sendto(sfd_w, oob_pkt, kOOB_PKT_LEN , 0, 
                            (struct sockaddr*) &dst_in, sizeof(dst_in)) < 0) {
                         LOGX("sendto()");
-                        free(oob_pkt);
-                        close(sd);
-                        return FAILURE;
+                        PEACEOUT_OWR;
                 } else {
-                        LOGI("OOB packet successfully sent");
+                        LOGI("third OOB packet successfully sent; "
+                             "ending experiment on client side.");
+                        FREE_PTR(oob_pkt);
                 }
         } else {
                 LOGX("unexpected TCP flag");
                 hexdump("received_packet", (void*) msg, n);
-                free(oob_pkt);
-                close(sd);
-                close(sd2);
-                return FAILURE;
+                PEACEOUT_OWR;
         }
 
-
-        free(oob_pkt);
-        close(sd);
-        close(sd2);
+        /* I know it's bad not to check return value of close() */
+        close(sfd_w);
+        close(sfd_r);
         return 0;
+
+
 }

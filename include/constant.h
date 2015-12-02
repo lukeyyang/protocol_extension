@@ -31,6 +31,8 @@ extern const int    kSRC_PORT_DEFAULT;
 extern const int    kDST_PORT_DEFAULT;
 extern const int    kLISTEN_PORT_DEFAULT;
 
+extern const long   kSELECT_TIMEOUT;
+
 extern const char*  kIP_LOCALHOST;
 extern const char*  kPAYLOAD;
 

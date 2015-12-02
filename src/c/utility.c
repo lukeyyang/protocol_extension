@@ -12,7 +12,6 @@
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
-#include <assert.h>
 #include <time.h>
 
 #include "os_detect.h"
@@ -20,8 +19,12 @@
 #include "constant.h"
 #include "debug.h"
 
-/* prepare an TCP/IP packet: OOB w/ payload, SYN, SYNACK, ACK */
-void
+/**
+ * prepares an TCP/IP packet: OOB w/ payload, SYN, SYNACK, ACK 
+ * caller is responsible for allocating sufficient space pointed to by *pkt_p
+ * returns non-zero vaule upon failure
+ */
+int
 prepare_tcp_pkt(const int pkt_type,
                 char** pkt_p, 
                 const int src_port,
@@ -36,22 +39,25 @@ prepare_tcp_pkt(const int pkt_type,
         switch (pkt_type) {
         case kPKT_TYPE_OOB:
                 pkt_is_oob = 1;
+                LOGV("preparing an OOB TCP packet");
                 break;
         case kPKT_TYPE_SYN:
                 pkt_is_syn = 1;
+                LOGV("preparing a SYN packet");
                 break;
         case kPKT_TYPE_SYNACK:
                 pkt_is_synack = 1;
+                LOGV("preparing a SYNACK packet");
                 break;
         case kPKT_TYPE_ACK:
                 pkt_is_ack = 1;
+                LOGV("preparing an ACK packet");
                 break;
         default:
                 LOGX("unrecognized target packet type");
-                return;
+                return -1;
                 break; /* never gets there */
         }
-        assert((pkt_is_oob || pkt_is_syn) || (pkt_is_synack || pkt_is_ack));
 
         /* total length includes payload length for OOB packet */
         const size_t kTOTAL_LEN = kIP_HDR_LEN + kTCP_HDR_LEN
@@ -61,10 +67,6 @@ prepare_tcp_pkt(const int pkt_type,
 
         struct ip* ip_hdr = (struct ip*) pkt;
         struct tcphdr* tcp_hdr = (struct tcphdr*) (pkt + sizeof(struct ip));
-
-        assert(sizeof(struct ip) == kIP_HDR_LEN);
-        assert(sizeof(struct tcphdr) == kTCP_HDR_LEN);
-
 
         /* FILL OUT IP HEADER */
 
@@ -89,12 +91,12 @@ prepare_tcp_pkt(const int pkt_type,
         s = inet_pton(AF_INET, src_addr, &(ip_hdr->ip_src));
         if (s != 1) {
                 LOGX("inet_pton()");
-                return;
+                return -1;
         }
         s = inet_pton(AF_INET, dst_addr, &(ip_hdr->ip_dst));
         if (s != 1) {
                 LOGX("inet_pton()");
-                return;
+                return -1;
         }
 
         ip_hdr->ip_sum = 0;
@@ -119,9 +121,7 @@ prepare_tcp_pkt(const int pkt_type,
                 tcp_hdr->th_flags = TH_SYN | TH_ACK;
         } else if (pkt_is_ack) {
                 tcp_hdr->th_flags = TH_ACK;
-        } else {
-                assert(0);
-        }
+        } 
         tcp_hdr->th_win   = htons(65535);     /* Window */
         tcp_hdr->th_urp   = htons(0);         /* Urgent pointer */
         tcp_hdr->th_sum   = 0; /* htons(tcp_checksum(ip_hdr, tcp_hdr)); */
@@ -156,7 +156,10 @@ prepare_tcp_pkt(const int pkt_type,
                 srand(time(NULL));
                 char rand_numchar = (char) ((rand() % 10) + '0');
                 memcpy(payload_num, &rand_numchar, 1);
+                LOGV("prepared OOB payload with random tag %c", rand_numchar);
         }
+
+        return 0;
 
 }
 
@@ -453,4 +456,18 @@ hexdump(const char* const desc, const void* const addr, int len)
         }
 
         printf("  %s\n", buff);
+}
+
+
+/* converts an unsigned short number into 8-bit binary in C-string */
+const char* 
+byte_to_binary(unsigned short x)
+{
+        static char b[9];
+        b[0] = '\0';
+        int z;
+        for (z = 128; z > 0; z >>= 1) {
+                strcat(b, ((x & z) == z) ? "1" : "0");
+        }
+        return b;
 }

@@ -22,6 +22,8 @@ const int    kSRC_PORT_DEFAULT    = 64000;
 const int    kDST_PORT_DEFAULT    = 64001;
 const int    kLISTEN_PORT_DEFAULT = 64001;
 
+const long   kSELECT_TIMEOUT      = 10;
+
 const char*  kIP_LOCALHOST        = "127.0.0.1";
 const char*  kPAYLOAD             = "Hello ";
 
